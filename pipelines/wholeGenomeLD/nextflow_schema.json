@@ -1,0 +1,124 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/YOUR_PIPELINE/master/nextflow_schema.json",
+    "title": "Nextflow pipeline parameters",
+    "description": "This pipeline uses Nextflow and processes some kind of data. The JSON Schema was built using the nf-core pipeline schema builder.",
+    "type": "object",
+    "$defs": {
+        "input_parameters": {
+            "title": "Input Parameters",
+            "type": "object",
+            "description": "Paths and settings for specifying input genotype data.",
+            "required": [
+                "pfile_template"
+            ],
+            "properties": {
+                "pfile_template": {
+                    "type": "string",
+                    "description": "template for PLINK2 .pfiles (without extension), using '{CHR}' as a placeholder e.g. '/home/data/g1k.chr{CHR}'",
+                },
+                "chroms": {
+                    "type": "string",
+                    "description": "comma-separated list of chromosomes to process (e.g. '1,2,X,Y'). If not provided, defaults to all autosomes plus X and Y."
+                },
+                "extract": {
+                    "type": "string",
+                    "description": "file with list of variants IDs to include'"
+                },
+                "exclude": {
+                    "type": "string",
+                    "description": "file with list of variants IDs to exclude'"
+                },
+                "keep": {
+                    "type": "string",
+                    "description": "file with list of sample IDs to subset to (must have two columns FID and IID)'"
+                }
+            }
+        },
+        "output_options": {
+            "title": "Output options",
+            "type": "object",
+            "description": "Define where the pipeline should save output data.",
+            "required": [
+                "outdir",
+                "prefix"
+            ],
+            "properties": {
+                "outdir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Output directory where the results will be saved",
+                    "default": "Current Directory"
+                },
+                "prefix": {
+                    "type": "string",
+                    "description": "Prefix for output compressed LDZip files",
+                    "default": "out"
+                },
+                "stage_plink": {
+                    "type": "boolean",
+                    "description": "Whether to stage intermediate PLINK LD files to outdir",
+                    "default": false
+                }
+            }
+        },
+        "plink_ld_parameters": {
+            "title": "Plink LD parameters",
+            "type": "object",
+            "description": "Options passed to PLINK for computing pairwise LD statistics.",
+            "properties": {
+                "ld_command": {
+                    "type": "string",
+                    "default": "--r-phased ref-based cols=id,ref,alt,dprime",
+                    "description": "string to be passed to plink2 for LD calculation. All LD statistics output by plink2 will be compressed"
+                },                
+                "ld_threads": {
+                    "type": "integer",
+                    "default": 4,
+                    "description": "number of CPU threads to use for PLINK LD calculations."
+                },
+                "ld_window_kb": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "genomic distance window (in kilobases) for calculating LD between variant pairs."
+                },
+                "ld_window_r2": {
+                    "type": "number",
+                    "default": 0.01,
+                    "description": "minimum r² value threshold; pairs with lower r² are excluded from output."
+                }
+            }
+        },
+        "ld_compression_parameters": {
+            "title": "LD Compression Parameters",
+            "type": "object",
+            "description": "Settings controlling the compression of Linkage Disequilibrium (LD) matrices.",
+            "properties": {
+                "bits": {
+                    "type": "integer",
+                    "default": 8,
+                    "enum": [8, 16, 32, 99],
+                    "description": "number of bits used to quantize each LD value. [Use 99 for storing raw 32-bit float without quantization]."
+                },
+                "min": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "minimum absolute LD value to store; values below this threshold are set to zero to reduce file size."
+                },
+                "min_col": {
+                    "type": "string",
+                    "default": "PHASED_R",
+                    "description": "column/type on which to apply the min threshold"
+                }
+            }
+        }
+    },
+    "allOf": [
+        { "$ref": "#/$defs/input_parameters" },
+        { "$ref": "#/$defs/plink_ld_parameters" },
+        { "$ref": "#/$defs/ld_compression_parameters" },
+        { "$ref": "#/$defs/output_options" }
+    ]
+}

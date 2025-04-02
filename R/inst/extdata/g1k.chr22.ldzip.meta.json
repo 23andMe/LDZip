@@ -1,0 +1,14 @@
+{
+  "bits": 8,
+  "dim": {
+    "cols": 4862,
+    "rows": 4862
+  },
+  "format": "full",
+  "nnz": 179308,
+  "stats": [
+    "PHASED_R",
+    "DPRIME"
+  ],
+  "version": "2.1"
+}

@@ -1,0 +1,52 @@
+
+nextflow_pipeline {
+
+    name "Whole Genome LDZip Unit Test Pipeline"
+    script "main.nf"
+
+    test("Unit Test 1 - Should run without failures") {
+
+        when {
+            params {
+                load("$projectDir/tests/yaml/unit1.yaml")
+                outdir = "$projectDir/.nf-test"
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+    test("Unit Test 2 - Should run without failures") {
+
+        when {
+            params {
+                load("$projectDir/tests/yaml/unit2.yaml")
+                outdir = "$projectDir/.nf-test"
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+    test("Unit Test 3 - Should run without failures") {
+
+        when {
+            params {
+                load("$projectDir/tests/yaml/unit3.yaml")
+                outdir = "$projectDir/.nf-test"
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}

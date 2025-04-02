@@ -1,0 +1,6 @@
+.nextflow*
+.vscode/
+.DS_Store
+.nf-test*
+*logs*
+*nf_log.txt

@@ -1,0 +1,5 @@
+pfile_template: '${projectDir}/../../assets/g1k.chr{CHR}'
+chroms: '20,21,22'
+stage_plink: true
+ld_command : "--r-unphased ref-based cols=id,ref,alt"
+min_col: "UNPHASED_R"

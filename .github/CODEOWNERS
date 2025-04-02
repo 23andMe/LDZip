@@ -1,0 +1,6 @@
+# Each line is a file pattern followed by one or more owners.
+# Owners can be either individual GitHub usernames or teams within an organization.
+
+# Example patterns and owners:
+*             @santy-ttam                   # All files in the repository
+ 

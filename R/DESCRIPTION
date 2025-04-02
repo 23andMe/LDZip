@@ -1,0 +1,13 @@
+Package: LDZipMatrix
+Type: Package
+Title: Efficient Compression and Random Access for Linkage Disequilibrium Matrices
+Version: 1.0
+Date: 2025-08-15
+Author: Sayantan Das
+Maintainer: Sayantan Das <sayantand@23andme.com>
+Description: LDZipMatrix provides tools to compress, store, and access large-scale linkage disequilibrium (LD) matrices efficiently. It supports reading and writing compressed LD data with minimal storage overhead, while enabling fast random access from R through a C++ backend.
+License: file LICENSE.txt
+Imports: Rcpp (>= 1.0.8), RSQLite, DBI
+LinkingTo: Rcpp
+RoxygenNote: 7.3.3
+Encoding: UTF-8

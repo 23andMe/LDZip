@@ -1,0 +1,5 @@
+bin/
+obj/
+obj_debug/
+old/
+tests/output
