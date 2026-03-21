@@ -1,0 +1,54 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
+
+# ---- OS deps used by CI + tests ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    make \
+    jq \
+    bc \
+    curl \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# ---- Install Miniforge (conda-forge) ----
+# Pin architecture for GitHub-hosted runners (linux-64). If you later build multi-arch, revisit this.
+ENV CONDA_DIR=/opt/conda
+RUN curl -fsSL \
+      https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh \
+      -o /tmp/miniforge.sh \
+  && bash /tmp/miniforge.sh -b -p "${CONDA_DIR}" \
+  && rm -f /tmp/miniforge.sh
+
+# Make conda available
+ENV PATH="${CONDA_DIR}/bin:${PATH}"
+
+# Faster conda + ensure clean base
+RUN conda config --system --set channel_priority strict \
+ && conda config --system --add channels conda-forge \
+ && conda install -y mamba \
+ && conda clean -a -y
+
+# ---- Create env + install deps (matches ci.yml) ----
+# We create a named env "ci-env" like your workflow.
+RUN mamba create -y -n ci-env -c conda-forge -c bioconda \
+      plink2 \
+      r-base \
+      r-argparse \
+      r-jsonlite \
+      r-matrix \
+ && conda clean -a -y
+
+# Activate by default for all future RUN/CMD by putting env first on PATH.
+# (This avoids relying on "bash -l" inside container jobs.)
+ENV CONDA_DEFAULT_ENV=ci-env
+ENV PATH="${CONDA_DIR}/envs/ci-env/bin:${PATH}"
+
+# Sanity checks
+RUN which plink2 && plink2 --version
+RUN which Rscript && Rscript --version
+RUN Rscript -e "library(argparse); library(jsonlite); library(Matrix); cat('R packages OK\n')"
+
+WORKDIR /work
