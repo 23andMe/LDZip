@@ -51,15 +51,16 @@ jobs:
             r-base
 
           echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
-          echo "RSCRIPT=$(which Rscript)" >> "$GITHUB_ENV"
 
           plink2 --version
           Rscript --version
 
       - name: Build
+        shell: bash -l {0}
         run: make build
 
       - name: Test
+        shell: bash -l {0}
         env:
           PLINK2: ${{ env.PLINK2 }}
         run: make test
