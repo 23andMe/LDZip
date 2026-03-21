@@ -40,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/ldzip-ci
+          images: ghcr.io/23andme/ldzip/ldzip-ci
           tags: |
             type=raw,value=latest
             type=sha
