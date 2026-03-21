@@ -50,7 +50,8 @@ jobs:
             plink2 \
             r-base \
             r-argparse \
-            r-jsonlite
+            r-jsonlite \
+            r-matrix
 
           echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
 
@@ -58,7 +59,7 @@ jobs:
           Rscript --version
 
           # Sanity check that required packages load
-          Rscript -e "library(argparse); library(jsonlite); cat('R packages OK\n')"
+          Rscript -e "library(argparse); library(jsonlite); library(Matrix); cat('R packages OK\n')"
 
       - name: Build
         shell: bash -l {0}
