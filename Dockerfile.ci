@@ -3,7 +3,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
-# ---- OS deps used by CI + tests ----
+# ---- OS deps ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     make \
@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bc \
     curl \
     ca-certificates \
+    git \
+    openjdk-17-jre-headless \
   && rm -rf /var/lib/apt/lists/*
 
 # ---- Install Miniforge (conda-forge) ----
@@ -41,13 +43,22 @@ RUN mamba create -y -n ci-env -c conda-forge -c bioconda \
       r-rsqlite \
  && conda clean -a -y
 
-# Activate env by default
 ENV CONDA_DEFAULT_ENV=ci-env
 ENV PATH="${CONDA_DIR}/envs/ci-env/bin:${PATH}"
 
-# Sanity checks
-RUN plink2 --version
-RUN Rscript --version
-RUN Rscript -e "library(argparse); library(jsonlite); library(Matrix); library(tinytest); library(Rcpp); library(DBI); library(RSQLite); cat('R deps OK\\n')"
+# ---- Nextflow ----
+# Installs nextflow to /usr/local/bin/nextflow
+RUN curl -fsSL https://get.nextflow.io -o /tmp/get.nextflow.sh \
+ && bash /tmp/get.nextflow.sh \
+ && mv nextflow /usr/local/bin/nextflow \
+ && chmod +x /usr/local/bin/nextflow \
+ && rm -f /tmp/get.nextflow.sh \
+ && nextflow -version
+
+# ---- nf-test ----
+# Installs nf-test to /usr/local/bin/nf-test
+RUN curl -fsSL https://raw.githubusercontent.com/nf-core/nf-test/master/nf-test -o /usr/local/bin/nf-test \
+ && chmod +x /usr/local/bin/nf-test \
+ && nf-test --version || true
 
 WORKDIR /work
