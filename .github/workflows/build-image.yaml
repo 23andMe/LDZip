@@ -6,6 +6,11 @@ on:
     paths:
       - "Dockerfile.ci"
       - ".github/workflows/build-image.yaml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "Dockerfile.ci"
+      - ".github/workflows/build-image.*"
   workflow_dispatch: {}
 
 permissions:
