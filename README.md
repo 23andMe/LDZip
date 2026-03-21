@@ -2,13 +2,12 @@
 
 `LDZipMatrix` is a suite of tools for **compressing** and **randomly accessing** large Linkage Disequilibrium (LD) matrices.
 
-It is designed for workflows where LD matrices are too large to store uncompressed, while still enabling fast, targeted access. Data are stored as flat files, requiring no database server and allowing simple deployment and portability, and support multiple LD metrics (e.g., phased/unphased $r$/$r^2$, delta, $D'$ etc). Common use cases include:
+It is designed for workflows where LD matrices are too large to store uncompressed, while still enabling fast, targeted access. Data are stored as flat files, requiring no database server and allowing simple deployment and portability, and support multiple LD metrics (e.g., phased/unphased r/r-square delta, Dprime etc). Common use cases include:
 
 - retrieving individual LD values between variant pairs (e.g., A vs. B)  
 - identifying variants in high LD with a given variant (above a specified threshold)  
 - extracting LD submatrices for downstream analyses (e.g., SuSiE, fine-mapping)  
 - generating inputs for LocusZoom plots, variant annotation, and related workflows  
-- working with chromosome- or genome-wide LD datasets produced in reproducible pipelines
 
 This repository includes three main components:
 
@@ -16,18 +15,17 @@ This repository includes three main components:
 
 - **R package (`LDZipMatrix`)** - Opens and queries `.ldzip` files efficiently from R with random access.
 
-- **Nextflow pipeline** - Automates whole-genome `.ldzip` generation (including LD calculation using plink2) by running per-chromosome jobs and combining the outputs.
+- **Nextflow pipeline** - Automates whole-genome `.ldzip` generation (including LD calculation using plink2) by running jobs on small chunks and combining the outputs.
 
 ---
 
 ## Table of Contents
 
-- [Who is this for?](#who-is-this-for)
 - [Installation](#installation)
   - [C++ Binary](#c-binary)
   - [R Package](#r-package)
   - [Nextflow](#nextflow)
-- [Project Layout](#project-layout)
+- [FAQ](#faq)
 - [Getting Help / Support](#getting-help--support)
 - [Security / Disclaimer](#security--disclaimer)
 - [Contact](#contact)
@@ -72,32 +70,20 @@ The Nextflow pipeline automates creation of a **whole-genome** compressed LD arc
 
 ---
 
-## Project Layout
-
-- `cpp/` — C++ source code and the `ldzip` CLI
-- `R/` — R package (`LDZipMatrix`) for reading and querying `.ldzip` files
-- `pipelines/` — Nextflow workflows, including the whole-genome pipeline
-
-
----
-
 ## FAQ
 
 - **I already have a `.ldzip` file and want to query it. What should I do?**  
-  Install the **R package** and use the R API to fetch LD values and neighboring linked variants.  
-  Go to: [R Package](#r-package)
+  Install the **R package** and use the R API to fetch LD values and neighboring linked variants. Go to: [R Package](#r-package)
 
-- **I have a PLINK LD matrix and want to create a `.ldzip` archive. What should I do?**  
-  Build the **C++ `ldzip` binary** and run the `compress` command.  
-  Go to: [C++ Binary](#c-binary)
+- **I have a PLINK LD matrix and want to create a `.ldzip` file. What should I do?**  
+  Build the **C++ `ldzip` binary** and run the `compress` command. Go to: [C++ Binary](#c-binary)
 
 - **I have PLINK pgen files and want to build whole-genome `.ldzip` outputs in a pipeline. What should I do?**  
-  Use the **Nextflow** workflow.  
-  Go to: [Nextflow](#nextflow)
+  Use the **Nextflow** workflow. Go to: [Nextflow](#nextflow)
 
 - **I already have a `.ldzip` file and want to convert it back to my own format. What should I do?**  
-  Install the **R package** and use the R API to fetch LD values and neighboring linked variants.  
-  Go to: [R Package](#r-package)
+  Build the **C++ `ldzip` binary** and run the `decompress` command. Go to: [C++ Binary](#c-binary)
+
 
 ---
 ## Getting Help / Support
