@@ -1,12 +1,12 @@
-name: Build & Publish CI image (GHCR)
+name: Publish CI image (GHCR)
 
 on:
-  workflow_dispatch: {}
   push:
     branches: [ main ]
     paths:
       - "Dockerfile.ci"
       - ".github/workflows/build-image.yml"
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
+      - name: Set up QEMU (multi-arch)
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
