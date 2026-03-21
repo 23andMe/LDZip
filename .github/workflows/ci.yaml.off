@@ -1,0 +1,56 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  cpp:
+    name: C++ (make build/test)
+    runs-on: ubuntu-latest
+
+    container:
+      image: ghcr.io/23andme/ldzip/ldzip-ci
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show tool versions (sanity)
+        shell: bash
+        run: |
+          set -euo pipefail
+          which plink2
+          plink2 --version
+          which Rscript
+          Rscript --version
+          Rscript -e "library(argparse); library(jsonlite); library(Matrix); cat('R packages OK\n')"
+
+      - name: Build
+        shell: bash
+        working-directory: cpp
+        run: make build
+
+      - name: Set PLINK2 env var
+        shell: bash
+        run: echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
+
+      - name: Test
+        shell: bash
+        working-directory: cpp
+        env:
+          PLINK2: ${{ env.PLINK2 }}
+        run: make test
