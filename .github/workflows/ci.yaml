@@ -40,17 +40,21 @@ jobs:
           miniforge-version: latest
           auto-update-conda: true
           use-mamba: true
-          activate-environment: plink-env
+          activate-environment: ci-env
 
-      # Important: conda activation doesn't persist unless we use a login shell
-      - name: Install plink2
+      - name: Install plink2 + Rscript (conda)
         shell: bash -l {0}
         run: |
           set -euo pipefail
-          mamba install -y -c conda-forge -c bioconda plink2
-          which plink2
-          plink2 --version
+          mamba install -y -c conda-forge -c bioconda \
+            plink2 \
+            r-base
+
           echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
+          echo "RSCRIPT=$(which Rscript)" >> "$GITHUB_ENV"
+
+          plink2 --version
+          Rscript --version
 
       - name: Build
         run: make build
