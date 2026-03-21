@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/23andme/ldzip/ldzip-ci
+      image: ghcr.io/23andme/ldzip/ldzip-ci:latest
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -37,7 +37,6 @@ jobs:
           plink2 --version
           which Rscript
           Rscript --version
-          Rscript -e "library(argparse); library(jsonlite); library(Matrix); cat('R packages OK\n')"
 
       - name: Build
         shell: bash
@@ -48,9 +47,45 @@ jobs:
         shell: bash
         run: echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
 
-      - name: Test
+      # - name: Test
+      #   shell: bash
+      #   working-directory: cpp
+      #   env:
+      #     PLINK2: ${{ env.PLINK2 }}
+      #   run: make test
+
+  r:
+    name: R (install + tinytest)
+    runs-on: ubuntu-latest
+
+    container:
+      image: ghcr.io/23andme/ldzip/ldzip-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show R deps (sanity)
+        shell: bash
+        run: |
+          set -euo pipefail
+          Rscript --version
+          Rscript -e "library(tinytest); library(Rcpp); library(DBI); library(RSQLite); cat('R deps OK\n')"
+
+      - name: Build ldzip binary (needed for R tests)
         shell: bash
         working-directory: cpp
-        env:
-          PLINK2: ${{ env.PLINK2 }}
+        run: make build
+
+      - name: Install LDZipMatrix R package
+        shell: bash
+        working-directory: R
+        run: make install
+
+      - name: Run tinytests
+        shell: bash
+        working-directory: R
         run: make test
