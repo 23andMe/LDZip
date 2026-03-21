@@ -43,7 +43,7 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
     }
 
     p_.resize(ncols_ + 1);
-    i_.resize(ncols_ + 1);
+    i_.resize(1);
     for (Stat s : stats_available_) xs_[s].resize(ncols_ + 1);
 
 }
