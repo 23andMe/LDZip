@@ -1,54 +1,57 @@
-FROM ubuntu:22.04
+name: Build & Publish CI image (GHCR)
 
-ENV DEBIAN_FRONTEND=noninteractive
-SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+    paths:
+      - "Dockerfile.ci"
+      - ".github/workflows/build-image.yml"
 
-# ---- OS deps used by CI + tests ----
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    make \
-    jq \
-    bc \
-    curl \
-    ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+permissions:
+  contents: read
+  packages: write
 
-# ---- Install Miniforge (conda-forge) ----
-# Pin architecture for GitHub-hosted runners (linux-64). If you later build multi-arch, revisit this.
-ENV CONDA_DIR=/opt/conda
-RUN curl -fsSL \
-      https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh \
-      -o /tmp/miniforge.sh \
-  && bash /tmp/miniforge.sh -b -p "${CONDA_DIR}" \
-  && rm -f /tmp/miniforge.sh
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
 
-# Make conda available
-ENV PATH="${CONDA_DIR}/bin:${PATH}"
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-# Faster conda + ensure clean base
-RUN conda config --system --set channel_priority strict \
- && conda config --system --add channels conda-forge \
- && conda install -y mamba \
- && conda clean -a -y
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-# ---- Create env + install deps (matches ci.yml) ----
-# We create a named env "ci-env" like your workflow.
-RUN mamba create -y -n ci-env -c conda-forge -c bioconda \
-      plink2 \
-      r-base \
-      r-argparse \
-      r-jsonlite \
-      r-matrix \
- && conda clean -a -y
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-# Activate by default for all future RUN/CMD by putting env first on PATH.
-# (This avoids relying on "bash -l" inside container jobs.)
-ENV CONDA_DEFAULT_ENV=ci-env
-ENV PATH="${CONDA_DIR}/envs/ci-env/bin:${PATH}"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-# Sanity checks
-RUN which plink2 && plink2 --version
-RUN which Rscript && Rscript --version
-RUN Rscript -e "library(argparse); library(jsonlite); library(Matrix); cat('R packages OK\n')"
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/ldzip-ci
+          tags: |
+            type=raw,value=latest
+            type=sha
 
-WORKDIR /work
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ci
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
