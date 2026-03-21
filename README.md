@@ -1,34 +1,45 @@
 # LDZipMatrix
 
+`LDZipMatrix` is a suite of tools for **compressing** and **randomly accessing** large Linkage Disequilibrium (LD) matrices.
+
+It is designed for workflows where LD matrices are too large to store uncompressed, while still enabling fast, targeted access. Data are stored as flat files, requiring no database server and allowing simple deployment and portability, and support multiple LD metrics (e.g., phased/unphased $r$/$r^2$, delta, $D'$ etc). Common use cases include:
+
+- retrieving individual LD values between variant pairs (e.g., A vs. B)  
+- identifying variants in high LD with a given variant (above a specified threshold)  
+- extracting LD submatrices for downstream analyses (e.g., SuSiE, fine-mapping)  
+- generating inputs for LocusZoom plots, variant annotation, and related workflows  
+- working with chromosome- or genome-wide LD datasets produced in reproducible pipelines
+
+This repository includes three main components:
+
+- **C++ binary (`ldzip`)**  - Compresses plink2 LD matrices into the `.ldzip` format and supports related operations such as decompression, filtering, and concatenation across chromosomes.
+
+- **R package (`LDZipMatrix`)** - Opens and queries `.ldzip` files efficiently from R with random access.
+
+- **Nextflow pipeline** - Automates whole-genome `.ldzip` generation (including LD calculation using plink2) by running per-chromosome jobs and combining the outputs.
+
+---
+
 ## Table of Contents
 
-- [Introduction](#introduction)
+- [Who is this for?](#who-is-this-for)
 - [Installation](#installation)
   - [C++ Binary](#c-binary)
   - [R Package](#r-package)
   - [Nextflow](#nextflow)
+- [Project Layout](#project-layout)
+- [Getting Help / Support](#getting-help--support)
+- [Security / Disclaimer](#security--disclaimer)
 - [Contact](#contact)
-- [Disclaimer](#disclaimer)
 
-
-## Introduction
-
-`LDZipMatrix` is a library for working with compressed Linkage Disequilibrium (LD) matrices.  
-It provides:
-
-- A **C++ binary** for highly efficient compression of plink LD matrices.  
-- An **R API** for random access of the compressed LD matrices.
-- A **Nextflow Pipeline** for creating a whole genome zipped LD matrix from phased PLINK input files.
-
----
 
 ## Installation
 
 ### C++ Binary
 
+- The snippet below compiles the `ldzip` C++ binary and places it in `cpp/bin/ldzip`.
 - Use the `ldzip` binary only for compressing PLINK LD matrices. 
 - To read existing compressed data, install the R package `LDZipMatrix` instead.
-- The snippet below compiles the `ldzip` C++ binary and places it in `cpp/bin/ldzip`.
 - For more details on usage of the C++ binary, please see the [C++ documentation](cpp/README.md).
 
 
@@ -38,14 +49,12 @@ cd LDZip/
 make cpp
 ```
 
-
-
 ### R Package
 
 - The snippet below builds and installs the R package `LDZipMatrix`.
+- This package is required for random access to compressed matrices in R.
 - You do not need to build the C++ binary to use the R package.
 - Ensure that `roxygen2` is installed for documentation and `NAMESPACE` generation.
-- This package is required for random access to compressed matrices in R.
 - For more details on the R package, please see the [R documentation](R/README.md).
 
 
@@ -57,19 +66,59 @@ make r-package
 
 ### Nextflow
 
-- The Nextflow pipeline automates creation of a whole-genome compressed LD matrix by scattering jobs per chromosome and then concatenating the results.
-- Nextflow pipelines do not require compiling. 
-- For more details on the Nextflow pipeline, please see the [Nextflow documentation](pipelines/wholeGenomeLD/README.md).
+The Nextflow pipeline automates creation of a **whole-genome** compressed LD archive by scattering work across chunks and concatenating the resulting outputs
 
+- For details on configuration and execution, see [Nextflow documentation](pipelines/wholeGenomeLD/README.md).
+
+---
+
+## Project Layout
+
+- `cpp/` — C++ source code and the `ldzip` CLI
+- `R/` — R package (`LDZipMatrix`) for reading and querying `.ldzip` files
+- `pipelines/` — Nextflow workflows, including the whole-genome pipeline
+
+
+---
+
+## FAQ
+
+- **I already have a `.ldzip` file and want to query it. What should I do?**  
+  Install the **R package** and use the R API to fetch LD values and neighboring linked variants.  
+  Go to: [R Package](#r-package)
+
+- **I have a PLINK LD matrix and want to create a `.ldzip` archive. What should I do?**  
+  Build the **C++ `ldzip` binary** and run the `compress` command.  
+  Go to: [C++ Binary](#c-binary)
+
+- **I have PLINK pgen files and want to build whole-genome `.ldzip` outputs in a pipeline. What should I do?**  
+  Use the **Nextflow** workflow.  
+  Go to: [Nextflow](#nextflow)
+
+- **I already have a `.ldzip` file and want to convert it back to my own format. What should I do?**  
+  Install the **R package** and use the R API to fetch LD values and neighboring linked variants.  
+  Go to: [R Package](#r-package)
+
+---
+## Getting Help / Support
+
+If you find a bug or have a feature request, please open a GitHub Issue in this repository.
+
+When reporting an issue, it is helpful to include:
+- what you were trying to do
+- the command or R code you ran
+- your OS and compiler / R versions
+- a minimal reproducible example, if possible
+
+---
+
+## Security / Disclaimer
+
+This tool is intended for trusted workflows and assumes that input `.ldzip` files are well-formed and generated by trusted sources. **Do not run this tool on untrusted or user-supplied `.ldzip` files.**  The parser is optimized for performance and does not perform full defensive validation against maliciously crafted inputs.
+
+---
 
 ## Contact
 
-For questions or issues related to **LDZipMatrix**, please use the GitHub issue tracker or email  
+For questions or issues related to `LDZipMatrix`, please use the GitHub issue tracker or email:  
 sayantand@23andme.com
-
-
-## Disclaimer
-
-This tool is designed for trusted workflows and assumes that input `.ldzip` files are well-formed and generated by trusted sources. Do not run this tool on untrusted or user-supplied `.ldzip` files. The parser is optimized for performance and does not perform full defensive validation against maliciously crafted inputs.
-
----
