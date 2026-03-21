@@ -33,6 +33,8 @@ RUN conda config --system --set channel_priority strict \
 # ---- Create env + install deps ----
 RUN mamba create -y -n ci-env -c conda-forge -c bioconda \
       plink2 \
+      nextflow \
+      nf-test \
       r-base \
       r-argparse \
       r-jsonlite \
@@ -46,19 +48,12 @@ RUN mamba create -y -n ci-env -c conda-forge -c bioconda \
 ENV CONDA_DEFAULT_ENV=ci-env
 ENV PATH="${CONDA_DIR}/envs/ci-env/bin:${PATH}"
 
-# ---- Nextflow ----
-# Installs nextflow to /usr/local/bin/nextflow
-RUN curl -fsSL https://get.nextflow.io -o /tmp/get.nextflow.sh \
- && bash /tmp/get.nextflow.sh \
- && mv nextflow /usr/local/bin/nextflow \
- && chmod +x /usr/local/bin/nextflow \
- && rm -f /tmp/get.nextflow.sh \
- && nextflow -version
+# ---- Sanity checks ----
+RUN plink2 --version
+RUN Rscript --version
+RUN nextflow -version
+RUN nf-test version || nf-test --help >/dev/null
 
-# ---- nf-test ----
-# Installs nf-test to /usr/local/bin/nf-test
-RUN curl -fsSL https://raw.githubusercontent.com/nf-core/nf-test/master/nf-test -o /usr/local/bin/nf-test \
- && chmod +x /usr/local/bin/nf-test \
- && nf-test --version || true
+RUN Rscript -e "library(argparse); library(jsonlite); library(Matrix); library(tinytest); library(Rcpp); library(DBI); library(RSQLite); cat('R deps OK\n')"
 
 WORKDIR /work
