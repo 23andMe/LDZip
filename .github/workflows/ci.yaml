@@ -42,18 +42,23 @@ jobs:
           use-mamba: true
           activate-environment: ci-env
 
-      - name: Install plink2 + Rscript (conda)
+      - name: Install plink2 + Rscript + R packages (conda)
         shell: bash -l {0}
         run: |
           set -euo pipefail
           mamba install -y -c conda-forge -c bioconda \
             plink2 \
-            r-base
+            r-base \
+            r-argparse \
+            r-jsonlite
 
           echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
 
           plink2 --version
           Rscript --version
+
+          # Sanity check that required packages load
+          Rscript -e "library(argparse); library(jsonlite); cat('R packages OK\n')"
 
       - name: Build
         shell: bash -l {0}
