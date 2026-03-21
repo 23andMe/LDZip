@@ -89,3 +89,45 @@ jobs:
         shell: bash
         working-directory: R
         run: make test
+  
+  nextflow:
+    name: Nextflow (nf-test)
+    runs-on: ubuntu-latest
+
+    container:
+      image: ghcr.io/23andme/ldzip/ldzip-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sanity tool versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          plink2 --version
+          nextflow -version
+          nf-test version || nf-test --help >/dev/null
+          Rscript --version
+
+      - name: Build ldzip (C++)
+        shell: bash
+        working-directory: cpp
+        run: make build
+
+      - name: Put ldzip on PATH
+        shell: bash
+        run: echo "${GITHUB_WORKSPACE}/cpp/bin" >> "$GITHUB_PATH"
+
+      - name: Install LDZipMatrix (R package)
+        shell: bash
+        working-directory: R
+        run: make install
+
+      - name: Run pipeline tests (nf-test)
+        shell: bash
+        working-directory: pipelines/wholeGenomeLD
+        run: make test
