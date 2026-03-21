@@ -104,7 +104,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sanity: tool versions
+      - name: Sanity tool versions
         shell: bash
         run: |
           set -euo pipefail
