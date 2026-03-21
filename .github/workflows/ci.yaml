@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   cpp:
-    name: C++ (make build/test)
+    name: C++ (build + test)
     runs-on: ubuntu-latest
 
     container:
@@ -47,15 +47,15 @@ jobs:
         shell: bash
         run: echo "PLINK2=$(which plink2)" >> "$GITHUB_ENV"
 
-      # - name: Test
-      #   shell: bash
-      #   working-directory: cpp
-      #   env:
-      #     PLINK2: ${{ env.PLINK2 }}
-      #   run: make test
+      - name: Test
+        shell: bash
+        working-directory: cpp
+        env:
+          PLINK2: ${{ env.PLINK2 }}
+        run: make test
 
   r:
-    name: R (install + tinytest)
+    name: R (install + test)
     runs-on: ubuntu-latest
 
     container:
