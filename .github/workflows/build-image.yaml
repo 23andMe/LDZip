@@ -10,7 +10,7 @@ on:
     branches: [ main ]
     paths:
       - "Dockerfile.ci"
-      - ".github/workflows/build-image.*"
+      - ".github/workflows/build-image.yaml"
   workflow_dispatch: {}
 
 permissions:
