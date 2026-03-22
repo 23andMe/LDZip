@@ -16,7 +16,12 @@ This pipeline manages the scatter gather to generate a compressed whole genome L
 ## Usage Parameters
 
 ### Input parameters
+
+**Genotype Input** (provide ONE of the following):
 - `--pfile_template` : Template for PLINK2 `.pfile` inputs (use `{CHR}` as placeholder, e.g. `/home/data/g1k.chr{CHR}`).
+- `--vcf_template` : Template for VCF files (use `{CHR}` as placeholder, e.g. `/home/data/g1k.chr{CHR}`). VCF files will be automatically converted to pgen format.
+
+**Other Input Options**:
 - `--chroms` : Comma-separated list of chromosomes to process (e.g. `1,2,X,Y`). Defaults to autosomes,X,Y and MT.
 - `--extract` : File with variant IDs to include.
 - `--exclude` : File with variant IDs to exclude.

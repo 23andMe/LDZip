@@ -8,14 +8,15 @@
         "input_parameters": {
             "title": "Input Parameters",
             "type": "object",
-            "description": "Paths and settings for specifying input genotype data.",
-            "required": [
-                "pfile_template"
-            ],
+            "description": "Paths and settings for specifying input genotype data. Provide either pfile_template or vcf_template, not both.",
             "properties": {
                 "pfile_template": {
                     "type": "string",
-                    "description": "template for PLINK2 .pfiles (without extension), using '{CHR}' as a placeholder e.g. '/home/data/g1k.chr{CHR}'",
+                    "description": "template for PLINK2 .pfiles (without extension), using '{CHR}' as a placeholder e.g. '/home/data/g1k.chr{CHR}'. Mutually exclusive with vcf_template."
+                },
+                "vcf_template": {
+                    "type": "string",
+                    "description": "template for VCF files (with .vcf or .vcf.gz extension), using '{CHR}' as a placeholder e.g. '/home/data/g1k.chr{CHR}'. VCF files will be automatically converted to pgen format. Mutually exclusive with pfile_template."
                 },
                 "chroms": {
                     "type": "string",
@@ -54,6 +55,11 @@
                     "type": "string",
                     "description": "Prefix for output compressed LDZip files",
                     "default": "out"
+                },
+                "stage_pgen": {
+                    "type": "boolean",
+                    "description": "Whether to stage converted pgen files to outdir (only applicable when using vcf_template)",
+                    "default": false
                 },
                 "stage_plink": {
                     "type": "boolean",
