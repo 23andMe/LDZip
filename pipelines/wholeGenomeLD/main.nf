@@ -6,6 +6,37 @@ validateParameters()
 
 CHROMS = params.chroms.tokenize(',')*.trim()
 
+process vcfToPgen {
+    tag { "chr${chr}" }
+    memory { 8.GB * task.attempt }
+    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir "${params.outdir}/pgen/", mode: 'link', overwrite: true, pattern: "converted.chr${chr}.*", enabled: params.stage_pgen
+
+    input:
+        tuple val(chr), path(vcf)
+
+    output:
+        tuple val(chr), path("converted.chr${chr}.pgen"), path("converted.chr${chr}.pvar"), path("converted.chr${chr}.psam"), emit: pfiles
+        path(".command.log"), emit: log
+
+    script:
+    def vcf_file = params.vcf_template.replace('{CHR}', chr)
+    """
+    ${PLINK2} \\
+        --vcf ${vcf_file}.vcf.gz \\
+        --make-pgen \\
+        --threads ${params.ld_threads} \\
+        --out converted.chr${chr}
+    """
+
+    stub:
+    """
+    touch converted.chr${chr}.pgen
+    touch converted.chr${chr}.pvar
+    touch converted.chr${chr}.psam
+    """
+}
+
 process ldPlink {
     tag { "chr${chr}" }
     memory { 8.GB * task.attempt }
@@ -13,35 +44,35 @@ process ldPlink {
     publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr${chr}.*", enabled: params.stage_plink
 
     input:
-        tuple val(chr), path(pfile)
+        tuple val(chr), path(pgen), path(pvar), path(psam)
 
     output:
-        tuple val(chr), path("plink.chr${chr}.vcor"), path("plink.chr${chr}.pvar"),       emit: vcor
-        path(".command.log"),           emit: log
+        tuple val(chr), path("plink.chr${chr}.vcor"), path("plink.chr${chr}.pvar"), emit: vcor
+        path(".command.log"), emit: log
 
     script:
-    def pfile_new = params.pfile_template.replace('{CHR}', chr)
+    def pfile_base = pgen.baseName  // Get basename without .pgen extension
     def subset_snps = params.extract ? "--extract ${params.extract}" : ""
     def exclude_snps = params.exclude ? "--exclude ${params.exclude}" : ""
     def subset_samples = params.keep ? "--keep ${params.keep}" : ""
     def plink_ld_command = params.ld_command ? "${params.ld_command}" : "--r-phased ref-based cols=id,ref,alt,dprime"
     """
     ${PLINK2} \\
-        --pfile ${pfile_new} ${subset_snps} ${exclude_snps}\\
+        --pfile ${pfile_base} ${subset_snps} ${exclude_snps} \\
         --rm-dup exclude-all \\
         --chr ${chr} \\
         --make-just-pvar \\
         --threads ${params.ld_threads} \\
         --out plink.chr${chr}
     cat plink.chr${chr}.pvar | grep -v '#' | cut -f 3 > ids
-    ${PLINK2} \
-        --pfile ${pfile_new} --extract ids ${subset_samples} \\
+    ${PLINK2} \\
+        --pfile ${pfile_base} --extract ids ${subset_samples} \\
         --ld-window-kb ${params.ld_window_kb} \\
         --ld-window-r2 ${params.ld_window_r2} \\
         ${plink_ld_command} \\
         --threads ${params.ld_threads} \\
         --memory ${params.ld_threads * (task.memory.toMega()-1024)} \\
-        --out plink.chr${chr} 
+        --out plink.chr${chr}
     """
 
     stub:
@@ -49,7 +80,6 @@ process ldPlink {
     touch plink.chr${chr}.vcor
     touch plink.chr${chr}.pvar
     """
-
 }
 
 process compressLD {
@@ -165,11 +195,32 @@ workflow {
     log.info " Temp Directory = ${workDir}"
     log.info ""
 
-    pgen_files = Channel.from(CHROMS)
-                       .map { chr -> 
-                           def bfile = params.pfile_template.replace('{CHR}', chr)
-                           tuple(chr, bfile)
-                       }
+    // Validate that either vcf_template or pfile_template is provided
+    if (params.vcf_template && params.pfile_template) {
+        error "Please provide either --vcf_template OR --pfile_template, not both"
+    }
+    if (!params.vcf_template && !params.pfile_template) {
+        error "Please provide either --vcf_template or --pfile_template"
+    }
+
+    if (params.vcf_template) {
+        vcf_files = Channel.from(CHROMS)
+                           .map { chr ->
+                               def vcf = params.vcf_template.replace('{CHR}', chr)
+                               tuple(chr, file(vcf))
+                           }
+
+        pgen_files = vcfToPgen(vcf_files).pfiles
+    } else {
+        pgen_files = Channel.from(CHROMS)
+                           .map { chr ->
+                               def base = params.pfile_template.replace('{CHR}', chr)
+                               tuple(chr,
+                                     file("${base}.pgen"),
+                                     file("${base}.pvar"),
+                                     file("${base}.psam"))
+                           }
+    }
 
     plink_ld_files      = ldPlink(pgen_files).vcor
     compressed_ld_files = compressLD(plink_ld_files).ldzip
