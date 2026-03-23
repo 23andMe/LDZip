@@ -93,7 +93,8 @@ void merge_vars_files(const std::vector<std::string> &prefixes, const std::strin
 // Helpers shared by overlapping and non-overlapping concat
 // ---------------------------------------------------------------------------
 
-// Read non-comment lines from a vars file (each line = one variant)
+// Read non-comment lines from a vars file (each line = one variant).
+// Used only by merge_vars_files_overlapping to reproduce the original text.
 static std::vector<std::string> read_var_lines(const std::string &vars_file) {
     std::ifstream in(vars_file);
     if (!in) throw std::runtime_error("Cannot open vars file: " + vars_file);
@@ -106,31 +107,59 @@ static std::vector<std::string> read_var_lines(const std::string &vars_file) {
     return lines;
 }
 
-// Extract the variant ID (field index 2, 0-based) from a tab-separated vars line
-static std::string get_var_id(const std::string &line) {
-    std::istringstream iss(line);
-    std::string field;
-    for (int i = 0; i <= 2; ++i) {
-        if (!std::getline(iss, field, '\t'))
-            throw std::runtime_error("Malformed vars line (fewer than 3 fields): " + line);
-    }
-    return field;
+// Load Variant objects for a chunk via LDZipMatrix::readVariants.
+static std::vector<Variant> load_chunk_variants(const std::string &prefix) {
+    LDZipMatrix m(prefix);
+    m.readVariants(prefix + ".vars.txt");
+    return m.variants();
 }
 
-// Return the number of trailing variants of chunk[i] that match the leading
-// variants of chunk[i+1] (by variant ID).  Returns 0 if there is no overlap.
-static uint32_t compute_overlap_size(const std::vector<std::string> &lines1,
-                                     const std::vector<std::string> &lines2) {
-    uint32_t max_k = static_cast<uint32_t>(std::min(lines1.size(), lines2.size()));
+// Count how many trailing variants of v1 match the leading variants of v2 by ID.
+static uint32_t compute_overlap_size(const std::vector<Variant> &v1,
+                                     const std::vector<Variant> &v2) {
+    uint32_t max_k = static_cast<uint32_t>(std::min(v1.size(), v2.size()));
     for (uint32_t k = max_k; k > 0; --k) {
         bool match = true;
-        for (uint32_t i = 0; i < k && match; ++i) {
-            if (get_var_id(lines1[lines1.size() - k + i]) != get_var_id(lines2[i]))
+        for (uint32_t i = 0; i < k && match; ++i)
+            if (v1[v1.size() - k + i].id() != v2[i].id())
                 match = false;
-        }
         if (match) return k;
     }
     return 0;
+}
+
+// Per-chunk [start, end) range in global merged coordinates.
+// Consecutive chunks overlap when bounds[i].end > bounds[i+1].start.
+struct ChunkBounds {
+    uint32_t start; // first variant's global index
+    uint32_t end;   // one past the last variant's global index
+};
+
+// Read all chunk variant lists, compute pairwise overlap sizes, and return
+// per-chunk ChunkBounds where end[i] > start[i+1] for each overlapping pair.
+static std::vector<ChunkBounds> get_overlapping_variants(
+        const std::vector<std::string>         &prefixes,
+        std::vector<std::vector<Variant>>      &out_variants,
+        std::vector<uint32_t>                  &out_overlaps) {
+    size_t n = prefixes.size();
+    out_variants.resize(n);
+    for (size_t ci = 0; ci < n; ++ci)
+        out_variants[ci] = load_chunk_variants(prefixes[ci]);
+
+    out_overlaps.assign(n > 1 ? n - 1 : 0, 0);
+    for (size_t ci = 0; ci + 1 < n; ++ci) {
+        out_overlaps[ci] = compute_overlap_size(out_variants[ci], out_variants[ci + 1]);
+        std::cout << " Overlap between chunk " << ci << " and chunk " << (ci + 1)
+                  << ": " << out_overlaps[ci] << " variants\n";
+    }
+
+    std::vector<ChunkBounds> bounds(n);
+    bounds[0] = {0, static_cast<uint32_t>(out_variants[0].size())};
+    for (size_t ci = 1; ci < n; ++ci) {
+        bounds[ci].start = bounds[ci - 1].end - out_overlaps[ci - 1];
+        bounds[ci].end   = bounds[ci].start + static_cast<uint32_t>(out_variants[ci].size());
+    }
+    return bounds;
 }
 
 // Write merged vars file, skipping the leading overlap variants of each
@@ -164,19 +193,6 @@ static void merge_vars_files_overlapping(
 // ---------------------------------------------------------------------------
 // Per-column helpers used by concat_ldzip_overlapping
 // ---------------------------------------------------------------------------
-
-// Compute the global start index (in the merged variant list) for each chunk.
-static std::vector<uint32_t> compute_global_offsets(
-        const std::vector<std::vector<std::string>> &all_var_lines,
-        const std::vector<uint32_t> &overlap_sizes) {
-    size_t n = all_var_lines.size();
-    std::vector<uint32_t> offsets(n, 0);
-    for (size_t ci = 1; ci < n; ++ci)
-        offsets[ci] = offsets[ci - 1]
-                    + static_cast<uint32_t>(all_var_lines[ci - 1].size())
-                    - overlap_sizes[ci - 1];
-    return offsets;
-}
 
 // Validate that all chunks are mutually compatible and use FULL format.
 // Overlapping concat is restricted to FULL format (tabularPlink output).
@@ -304,27 +320,17 @@ void concat_ldzip_overlapping(const std::vector<std::string> &prefixes,
         throw std::runtime_error("No input chunks provided.");
 
     // -----------------------------------------------------------------------
-    // Step 1 – read vars files and detect pairwise overlaps
+    // Step 1 – read variants and detect pairwise overlaps
     // -----------------------------------------------------------------------
-    size_t n_chunks = prefixes.size();
-    std::vector<std::vector<std::string>> all_var_lines(n_chunks);
-    for (size_t ci = 0; ci < n_chunks; ++ci)
-        all_var_lines[ci] = read_var_lines(prefixes[ci] + ".vars.txt");
-
-    std::vector<uint32_t> overlap_sizes(n_chunks - 1, 0);
-    for (size_t ci = 0; ci + 1 < n_chunks; ++ci) {
-        overlap_sizes[ci] = compute_overlap_size(all_var_lines[ci], all_var_lines[ci + 1]);
-        std::cout << " Overlap between chunk " << ci << " and chunk " << (ci + 1)
-                  << ": " << overlap_sizes[ci] << " variants\n";
-    }
-
-    auto global_offsets = compute_global_offsets(all_var_lines, overlap_sizes);
-    uint32_t total_n = global_offsets.back()
-                     + static_cast<uint32_t>(all_var_lines.back().size());
+    std::vector<std::vector<Variant>> all_variants;
+    std::vector<uint32_t>             overlap_sizes;
+    auto bounds  = get_overlapping_variants(prefixes, all_variants, overlap_sizes);
+    uint32_t total_n = bounds.back().end;
 
     // -----------------------------------------------------------------------
     // Step 2 – open inputs and validate
     // -----------------------------------------------------------------------
+    size_t n_chunks = prefixes.size();
     std::vector<LDZipMatrix> inputs;
     inputs.reserve(n_chunks);
     for (auto &p : prefixes) inputs.emplace_back(p);
@@ -332,7 +338,7 @@ void concat_ldzip_overlapping(const std::vector<std::string> &prefixes,
     validate_chunks_for_overlap(inputs);
 
     auto stats = inputs[0].stats_available();
-    Stat stat  = stats[0];   // single-stat restriction (same as filter)
+    Stat stat  = stats[0];
 
     // -----------------------------------------------------------------------
     // Step 3 – create output compressor (ColumnStream mode)
@@ -347,16 +353,14 @@ void concat_ldzip_overlapping(const std::vector<std::string> &prefixes,
     uint32_t active_col = 0;
 
     for (size_t ci = 0; ci < n_chunks; ++ci) {
-        uint32_t n_cols   = static_cast<uint32_t>(all_var_lines[ci].size());
-        uint32_t ov_prev  = (ci > 0)            ? overlap_sizes[ci - 1] : 0;
-        uint32_t ov_next  = (ci + 1 < n_chunks) ? overlap_sizes[ci]     : 0;
+        uint32_t n_cols  = static_cast<uint32_t>(all_variants[ci].size());
+        uint32_t ov_prev = (ci > 0)            ? overlap_sizes[ci - 1] : 0;
+        uint32_t ov_next = (ci + 1 < n_chunks) ? overlap_sizes[ci]     : 0;
 
         // Non-overlap columns unique to this chunk
-        // (skip leading ov_prev columns already emitted in the previous
-        //  overlap pass, and trailing ov_next columns handled below)
         for (uint32_t j = ov_prev; j < n_cols - ov_next; ++j)
             push_nonoverlap_col(compressor, inputs[ci], j,
-                                global_offsets[ci], stat, active_col++);
+                                bounds[ci].start, stat, active_col++);
 
         // Overlap columns shared with the next chunk
         if (ci + 1 < n_chunks) {
@@ -367,7 +371,7 @@ void concat_ldzip_overlapping(const std::vector<std::string> &prefixes,
                 push_overlap_col(compressor,
                                  inputs[ci],      inputs[ci_next],
                                  j1, j2,
-                                 global_offsets[ci], global_offsets[ci_next],
+                                 bounds[ci].start, bounds[ci_next].start,
                                  stat, active_col++);
             }
         }
@@ -377,6 +381,12 @@ void concat_ldzip_overlapping(const std::vector<std::string> &prefixes,
     // Step 5 – finalize output files and write vars
     // -----------------------------------------------------------------------
     compressor.stream_close();
+
+    // Build raw text lines for the vars file (needed to reproduce original format)
+    std::vector<std::vector<std::string>> all_var_lines(n_chunks);
+    for (size_t ci = 0; ci < n_chunks; ++ci)
+        all_var_lines[ci] = read_var_lines(prefixes[ci] + ".vars.txt");
+
     merge_vars_files_overlapping(prefixes, all_var_lines, overlap_sizes,
                                  out_prefix + ".vars.txt");
 }
