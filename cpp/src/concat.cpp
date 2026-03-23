@@ -8,10 +8,6 @@
 #include <string>
 #include <stdexcept>
 #include <sstream>
-#include <algorithm>
-#include <cmath>
-#include <limits>
-#include <climits>
 
 namespace ldzip {
 
@@ -94,7 +90,7 @@ void merge_vars_files(const std::vector<std::string> &prefixes, const std::strin
 
 
 // ---------------------------------------------------------------------------
-// Helpers for overlapping concat
+// Helpers shared by overlapping and non-overlapping concat
 // ---------------------------------------------------------------------------
 
 // Read non-comment lines from a vars file (each line = one variant)
@@ -137,9 +133,8 @@ static uint32_t compute_overlap_size(const std::vector<std::string> &lines1,
     return 0;
 }
 
-// Write a merged vars file that deduplicates the overlap variants.
-// For each chunk[ci] (ci > 0), the first overlap_sizes[ci-1] variants are
-// already present from the previous chunk and are skipped.
+// Write merged vars file, skipping the leading overlap variants of each
+// non-first chunk (those were already written from the previous chunk).
 static void merge_vars_files_overlapping(
         const std::vector<std::string> &prefixes,
         const std::vector<std::vector<std::string>> &all_var_lines,
@@ -149,117 +144,148 @@ static void merge_vars_files_overlapping(
     std::ofstream out(out_file);
     if (!out) throw std::runtime_error("Cannot open output vars file: " + out_file);
 
-    // Write the header from the first chunk
+    // Copy header from the first chunk
     {
         std::ifstream in(prefixes[0] + ".vars.txt");
         std::string line;
         while (std::getline(in, line)) {
-            if (!line.empty() && line[0] == '#') {
-                out << line << '\n';
-                break;
-            }
+            if (!line.empty() && line[0] == '#') { out << line << '\n'; break; }
         }
     }
 
     size_t n_chunks = prefixes.size();
     for (size_t ci = 0; ci < n_chunks; ++ci) {
-        // Skip variants that are the overlap with the previous chunk
         uint32_t skip = (ci > 0) ? overlap_sizes[ci - 1] : 0;
         for (size_t j = skip; j < all_var_lines[ci].size(); ++j)
             out << all_var_lines[ci][j] << '\n';
     }
 }
 
-// Write a quantized value buffer to an output stream.
-// Mirrors write_scaled_buffer in ldzipcompressor.cpp.
-template <typename T>
-static void write_quantized_vals(std::ofstream &out,
-                                 const std::vector<float> &vals,
-                                 int64_t scale) {
-    std::vector<T> buf(vals.size());
-    constexpr T NA_SENTINEL = std::numeric_limits<T>::min();
-    for (size_t i = 0; i < vals.size(); ++i) {
-        if (std::isnan(vals[i])) {
-            buf[i] = NA_SENTINEL;
-        } else {
-            float v = std::clamp(vals[i], -1.0f, 1.0f);
-            if constexpr (std::is_same_v<T, float>)
-                buf[i] = v;
-            else
-                buf[i] = static_cast<T>(
-                    std::llround(static_cast<double>(v) * static_cast<double>(scale)));
-        }
-    }
-    out.write(reinterpret_cast<const char *>(buf.data()),
-              static_cast<std::streamsize>(buf.size() * sizeof(T)));
+// ---------------------------------------------------------------------------
+// Per-column helpers used by concat_ldzip_overlapping
+// ---------------------------------------------------------------------------
+
+// Compute the global start index (in the merged variant list) for each chunk.
+static std::vector<uint32_t> compute_global_offsets(
+        const std::vector<std::vector<std::string>> &all_var_lines,
+        const std::vector<uint32_t> &overlap_sizes) {
+    size_t n = all_var_lines.size();
+    std::vector<uint32_t> offsets(n, 0);
+    for (size_t ci = 1; ci < n; ++ci)
+        offsets[ci] = offsets[ci - 1]
+                    + static_cast<uint32_t>(all_var_lines[ci - 1].size())
+                    - overlap_sizes[ci - 1];
+    return offsets;
 }
 
-// Delta-encode global_rows relative to global_col and write to i_out / coo_out.
-// Also writes quantized x values for all stats to x_outs.
-// Updates current_nnz and p_vec[global_col] / p_vec[global_col+1].
-static void write_column_to_files(
-        uint32_t global_col,
-        const std::vector<uint32_t> &global_rows,   // ascending global row indices
-        const EnumArray<std::vector<float>, Stat> &row_vals,
-        uint64_t &current_nnz,
-        std::vector<uint64_t> &p_vec,
-        std::ofstream &i_out,
-        COO &coo_out,
-        EnumArray<std::ofstream, Stat> &x_outs,
-        Bits bits,
-        const std::vector<Stat> &stats_available) {
+// Validate that all chunks are mutually compatible and use FULL format.
+// Overlapping concat is restricted to FULL format (tabularPlink output).
+static void validate_chunks_for_overlap(const std::vector<LDZipMatrix> &inputs) {
+    if (inputs[0].format() != MatrixFormat::FULL)
+        throw std::runtime_error(
+            "Overlapping concat requires FULL matrix format "
+            "(produced by plinkTabular compression).");
 
-    p_vec[global_col] = current_nnz;
-    size_t nnz = global_rows.size();
-
-    if (nnz > 0) {
-        // Write x values for each stat
-        int64_t scale = (1LL << (bits_to_int(bits) - 1)) - 1;
-        for (Stat s : stats_available) {
-            switch (bits) {
-                case Bits::B8:  write_quantized_vals<int8_t> (x_outs[s], row_vals[s], scale); break;
-                case Bits::B16: write_quantized_vals<int16_t>(x_outs[s], row_vals[s], scale); break;
-                case Bits::B32: write_quantized_vals<int32_t>(x_outs[s], row_vals[s], scale); break;
-                case Bits::B99: write_quantized_vals<float>  (x_outs[s], row_vals[s], scale); break;
-                default: throw std::runtime_error("Unsupported bits value");
-            }
-        }
-
-        // Delta-encode row indices, matching the scheme in LDZipCompressor::write_i()
-        using T = int16_t;
-        static constexpr T DELTA_SENTINEL = std::numeric_limits<T>::max();
-
-        std::vector<T> deltas(nnz);
-
-        // First delta: global_col - row[0]  (stored as uint64 via int64 cast, same as write_i)
-        uint64_t delta = static_cast<uint64_t>(
-            static_cast<int64_t>(global_col) - static_cast<int64_t>(global_rows[0]));
-        if (delta >= static_cast<uint64_t>(DELTA_SENTINEL)) {
-            coo_out.push(0, global_col, static_cast<uint32_t>(delta));
-            deltas[0] = DELTA_SENTINEL;
-        } else {
-            deltas[0] = static_cast<T>(delta);
-        }
-
-        // Subsequent deltas: row[k] - row[k-1]
-        for (size_t idx = 1; idx < nnz; ++idx) {
-            delta = static_cast<uint64_t>(
-                static_cast<int64_t>(global_rows[idx]) -
-                static_cast<int64_t>(global_rows[idx - 1]));
-            if (delta >= static_cast<uint64_t>(DELTA_SENTINEL)) {
-                coo_out.push(idx, global_col, static_cast<uint32_t>(delta));
-                deltas[idx] = DELTA_SENTINEL;
-            } else {
-                deltas[idx] = static_cast<T>(delta);
-            }
-        }
-
-        i_out.write(reinterpret_cast<const char *>(deltas.data()),
-                    static_cast<std::streamsize>(nnz * sizeof(T)));
+    for (size_t ci = 1; ci < inputs.size(); ++ci) {
+        if (inputs[ci].format() != inputs[0].format())
+            throw std::runtime_error("Chunk " + std::to_string(ci) +
+                                     " has a different matrix format than chunk 0.");
+        if (inputs[ci].bitsEnum() != inputs[0].bitsEnum())
+            throw std::runtime_error("Chunk " + std::to_string(ci) +
+                                     " has a different bit width than chunk 0.");
+        auto s0 = inputs[0].stats_available();
+        auto si = inputs[ci].stats_available();
+        if (si.size() != s0.size() || si != s0)
+            throw std::runtime_error("Chunk " + std::to_string(ci) +
+                                     " has different statistics than chunk 0.");
     }
+}
 
-    current_nnz += nnz;
-    p_vec[global_col + 1] = current_nnz;
+// Translate local uint32 row indices to global size_t indices by adding an offset.
+static std::vector<size_t> to_global_rows(const std::vector<uint32_t> &local_rows,
+                                          uint32_t global_offset) {
+    std::vector<size_t> out(local_rows.size());
+    for (size_t k = 0; k < local_rows.size(); ++k)
+        out[k] = local_rows[k] + global_offset;
+    return out;
+}
+
+// From a decoded column, keep only entries with local row < threshold.
+// Translate kept rows to global indices by adding global_offset.
+static std::pair<std::vector<size_t>, std::vector<float>>
+filter_above_diagonal(const std::vector<uint32_t> &rows,
+                      const std::vector<float>    &xs,
+                      uint32_t threshold,
+                      uint32_t global_offset) {
+    std::vector<size_t> out_rows;
+    std::vector<float>  out_xs;
+    for (size_t k = 0; k < rows.size(); ++k) {
+        if (rows[k] < threshold) {
+            out_rows.push_back(rows[k] + global_offset);
+            out_xs.push_back(xs[k]);
+        }
+    }
+    return {out_rows, out_xs};
+}
+
+// From a decoded column, keep only entries with local row >= threshold
+// (diagonal + below-diagonal).  Translate rows to global indices.
+static std::pair<std::vector<size_t>, std::vector<float>>
+filter_below_diagonal(const std::vector<uint32_t> &rows,
+                      const std::vector<float>    &xs,
+                      uint32_t threshold,
+                      uint32_t global_offset) {
+    std::vector<size_t> out_rows;
+    std::vector<float>  out_xs;
+    for (size_t k = 0; k < rows.size(); ++k) {
+        if (rows[k] >= threshold) {
+            out_rows.push_back(rows[k] + global_offset);
+            out_xs.push_back(xs[k]);
+        }
+    }
+    return {out_rows, out_xs};
+}
+
+// Append `src` onto `dst` in-place.
+static void append_column(std::pair<std::vector<size_t>, std::vector<float>> &dst,
+                          const std::pair<std::vector<size_t>, std::vector<float>> &src) {
+    dst.first.insert(dst.first.end(), src.first.begin(), src.first.end());
+    dst.second.insert(dst.second.end(), src.second.begin(), src.second.end());
+}
+
+// Decode a non-overlap column from a chunk, translate rows to global coordinates,
+// and write it via the compressor (ColumnStream mode, active_col must match cidx).
+static void push_nonoverlap_col(LDZipCompressor       &compressor,
+                                const LDZipMatrix     &chunk,
+                                uint32_t               local_col,
+                                uint32_t               global_offset,
+                                Stat                   stat,
+                                uint32_t               active_col) {
+    auto local_rows  = chunk.get_i(local_col);
+    auto xs          = chunk.get_x(local_col, stat);
+    auto global_rows = to_global_rows(local_rows, global_offset);
+    compressor.push_column_raw(active_col, xs, global_rows, stat);
+}
+
+// Decode an overlap column from two chunks, apply the diagonal split rule, merge,
+// and write via the compressor.
+//   chunk1 @ j1 : keep rows < j1  (above-diagonal in chunk1's local coordinates)
+//   chunk2 @ j2 : keep rows >= j2 (diagonal + below-diagonal in chunk2's local coords)
+// Rows from chunk1 are translated by global_off1; rows from chunk2 by global_off2.
+static void push_overlap_col(LDZipCompressor   &compressor,
+                             const LDZipMatrix &chunk1, const LDZipMatrix &chunk2,
+                             uint32_t           j1,    uint32_t           j2,
+                             uint32_t           global_off1, uint32_t global_off2,
+                             Stat stat, uint32_t active_col) {
+    auto rows1 = chunk1.get_i(j1);
+    auto xs1   = chunk1.get_x(j1, stat);
+    auto rows2 = chunk2.get_i(j2);
+    auto xs2   = chunk2.get_x(j2, stat);
+
+    auto merged = filter_above_diagonal(rows1, xs1, j1, global_off1);
+    append_column(merged, filter_below_diagonal(rows2, xs2, j2, global_off2));
+
+    compressor.push_column_raw(active_col, merged.second, merged.first, stat);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,211 +293,90 @@ static void write_column_to_files(
 // ---------------------------------------------------------------------------
 // Concatenates multiple .ldzip chunks that may have overlapping variant ranges.
 // Overlap is auto-detected by comparing variant IDs in consecutive vars files.
-// For each column in the overlapping region: entries with row <= column come
-// from the earlier chunk (above-diagonal), entries with row > column come from
-// the later chunk (below-diagonal).
-// Only supports FULL matrix format (produced by plinkTabular compression).
+// For each column in the overlapping region the above-diagonal entries
+// (row < column) are taken from the earlier chunk and the diagonal + below-diagonal
+// entries (row >= column) are taken from the later chunk.
+// Restricted to FULL matrix format (produced by plinkTabular compression).
 void concat_ldzip_overlapping(const std::vector<std::string> &prefixes,
                               const std::string &out_prefix) {
 
-    size_t n_chunks = prefixes.size();
-    if (n_chunks == 0)
-        throw std::runtime_error("No input chunks provided");
+    if (prefixes.empty())
+        throw std::runtime_error("No input chunks provided.");
 
     // -----------------------------------------------------------------------
-    // Step 1: Read vars files and detect pairwise overlaps
+    // Step 1 – read vars files and detect pairwise overlaps
     // -----------------------------------------------------------------------
+    size_t n_chunks = prefixes.size();
     std::vector<std::vector<std::string>> all_var_lines(n_chunks);
     for (size_t ci = 0; ci < n_chunks; ++ci)
         all_var_lines[ci] = read_var_lines(prefixes[ci] + ".vars.txt");
 
-    std::vector<uint32_t> overlap_sizes(n_chunks > 1 ? n_chunks - 1 : 0, 0);
+    std::vector<uint32_t> overlap_sizes(n_chunks - 1, 0);
     for (size_t ci = 0; ci + 1 < n_chunks; ++ci) {
-        overlap_sizes[ci] =
-            compute_overlap_size(all_var_lines[ci], all_var_lines[ci + 1]);
+        overlap_sizes[ci] = compute_overlap_size(all_var_lines[ci], all_var_lines[ci + 1]);
         std::cout << " Overlap between chunk " << ci << " and chunk " << (ci + 1)
                   << ": " << overlap_sizes[ci] << " variants\n";
     }
 
-    // -----------------------------------------------------------------------
-    // Step 2: Compute global offsets (start index in the merged variant list
-    //         for each chunk's first variant)
-    // -----------------------------------------------------------------------
-    std::vector<uint32_t> global_offsets(n_chunks, 0);
-    for (size_t ci = 1; ci < n_chunks; ++ci) {
-        global_offsets[ci] = global_offsets[ci - 1] +
-            static_cast<uint32_t>(all_var_lines[ci - 1].size()) -
-            overlap_sizes[ci - 1];
-    }
-    uint32_t total_n = global_offsets[n_chunks - 1] +
-                       static_cast<uint32_t>(all_var_lines[n_chunks - 1].size());
+    auto global_offsets = compute_global_offsets(all_var_lines, overlap_sizes);
+    uint32_t total_n = global_offsets.back()
+                     + static_cast<uint32_t>(all_var_lines.back().size());
 
     // -----------------------------------------------------------------------
-    // Step 3: Open all input matrices and validate compatibility
+    // Step 2 – open inputs and validate
     // -----------------------------------------------------------------------
     std::vector<LDZipMatrix> inputs;
     inputs.reserve(n_chunks);
-    for (auto &p : prefixes)
-        inputs.emplace_back(p);
+    for (auto &p : prefixes) inputs.emplace_back(p);
 
-    Bits bits = inputs[0].bitsEnum();
-    MatrixFormat fmt = inputs[0].format();
-    std::vector<Stat> stats = inputs[0].stats_available();
+    validate_chunks_for_overlap(inputs);
 
-    if (fmt != MatrixFormat::FULL)
-        throw std::runtime_error(
-            "Overlapping concat is only supported for FULL matrix format "
-            "(produced by plinkTabular compression).");
-
-    for (size_t ci = 1; ci < n_chunks; ++ci) {
-        if (inputs[ci].bitsEnum() != bits)
-            throw std::runtime_error("Chunk " + std::to_string(ci) +
-                                     " has a different bit width than chunk 0.");
-        if (inputs[ci].format() != fmt)
-            throw std::runtime_error("Chunk " + std::to_string(ci) +
-                                     " has a different matrix format than chunk 0.");
-        // Verify stats match
-        auto other_stats = inputs[ci].stats_available();
-        if (other_stats.size() != stats.size())
-            throw std::runtime_error("Chunk " + std::to_string(ci) +
-                                     " has different statistics than chunk 0.");
-        for (size_t si = 0; si < stats.size(); ++si)
-            if (other_stats[si] != stats[si])
-                throw std::runtime_error("Chunk " + std::to_string(ci) +
-                                         " has different statistics than chunk 0.");
-    }
+    auto stats = inputs[0].stats_available();
+    Stat stat  = stats[0];   // single-stat restriction (same as filter)
 
     // -----------------------------------------------------------------------
-    // Step 4: Open output files
+    // Step 3 – create output compressor (ColumnStream mode)
     // -----------------------------------------------------------------------
-    std::string coo_path = out_prefix + ".io.bin";
-    COO coo_out(coo_path.c_str(), 'w');
-
-    std::ofstream i_out(out_prefix + ".i.bin",
-                        std::ios::binary | std::ios::trunc);
-    if (!i_out)
-        throw std::runtime_error("Cannot create i file: " + out_prefix + ".i.bin");
-
-    EnumArray<std::ofstream, Stat> x_outs;
-    for (Stat s : stats) {
-        std::string xp = out_prefix + ".x." + stat_to_string(s) + ".bin";
-        x_outs[s].open(xp, std::ios::binary | std::ios::trunc);
-        if (!x_outs[s])
-            throw std::runtime_error("Cannot create x file: " + xp);
-    }
+    LDZipCompressor compressor(total_n, total_n,
+                               inputs[0].format(), stats, inputs[0].bitsEnum(),
+                               out_prefix, LDZipCompressor::Mode::ColumnStream);
 
     // -----------------------------------------------------------------------
-    // Step 5: Process all global columns
+    // Step 4 – push columns in global order
     // -----------------------------------------------------------------------
-    uint64_t current_nnz = 0;
-    std::vector<uint64_t> p_vec(total_n + 1, 0);
-    uint32_t global_col = 0;
+    uint32_t active_col = 0;
 
     for (size_t ci = 0; ci < n_chunks; ++ci) {
         uint32_t n_cols   = static_cast<uint32_t>(all_var_lines[ci].size());
-        uint32_t ov_prev  = (ci > 0)             ? overlap_sizes[ci - 1] : 0;
-        uint32_t ov_next  = (ci + 1 < n_chunks)  ? overlap_sizes[ci]     : 0;
+        uint32_t ov_prev  = (ci > 0)            ? overlap_sizes[ci - 1] : 0;
+        uint32_t ov_next  = (ci + 1 < n_chunks) ? overlap_sizes[ci]     : 0;
 
-        // Non-overlap columns unique to this chunk (skip the leading columns
-        // already emitted as part of the previous overlap pass, and the trailing
-        // columns that will be emitted as part of the next overlap pass).
-        uint32_t non_ov_start = ov_prev;
-        uint32_t non_ov_end   = n_cols - ov_next;  // exclusive
+        // Non-overlap columns unique to this chunk
+        // (skip leading ov_prev columns already emitted in the previous
+        //  overlap pass, and trailing ov_next columns handled below)
+        for (uint32_t j = ov_prev; j < n_cols - ov_next; ++j)
+            push_nonoverlap_col(compressor, inputs[ci], j,
+                                global_offsets[ci], stat, active_col++);
 
-        // --- Non-overlap columns ---
-        for (uint32_t j = non_ov_start; j < non_ov_end; ++j) {
-            auto local_rows = inputs[ci].get_i(j);
-            EnumArray<std::vector<float>, Stat> row_vals;
-            for (Stat s : stats)
-                row_vals[s] = inputs[ci].get_x(j, s);
-
-            // Translate local row indices to global
-            std::vector<uint32_t> global_rows(local_rows.size());
-            for (size_t k = 0; k < local_rows.size(); ++k)
-                global_rows[k] = global_offsets[ci] + local_rows[k];
-
-            write_column_to_files(global_col, global_rows, row_vals,
-                                  current_nnz, p_vec,
-                                  i_out, coo_out, x_outs, bits, stats);
-            ++global_col;
-        }
-
-        // --- Overlap columns with the next chunk ---
+        // Overlap columns shared with the next chunk
         if (ci + 1 < n_chunks) {
-            size_t ci_next = ci + 1;
+            uint32_t ci_next = ci + 1;
             for (uint32_t ov = 0; ov < ov_next; ++ov) {
-                // j1: local column index in chunk ci  (tail of chunk ci)
-                // j2: local column index in chunk ci+1 (head of chunk ci+1)
-                uint32_t j1 = non_ov_end + ov;   // = n_cols - ov_next + ov
-                uint32_t j2 = ov;
-
-                auto local_rows1 = inputs[ci].get_i(j1);
-                auto local_rows2 = inputs[ci_next].get_i(j2);
-
-                EnumArray<std::vector<float>, Stat> rv1, rv2;
-                for (Stat s : stats) {
-                    rv1[s] = inputs[ci].get_x(j1, s);
-                    rv2[s] = inputs[ci_next].get_x(j2, s);
-                }
-
-                // Merge rule:
-                //   From chunk ci  : rows with local_row <= j1
-                //                    (global row <= global_col → above-diagonal)
-                //   From chunk ci+1: rows with local_row >  j2
-                //                    (global row >  global_col → below-diagonal)
-                std::vector<uint32_t> merged_rows;
-                EnumArray<std::vector<float>, Stat> merged_vals;
-
-                for (size_t k = 0; k < local_rows1.size(); ++k) {
-                    if (local_rows1[k] <= j1) {
-                        merged_rows.push_back(global_offsets[ci] + local_rows1[k]);
-                        for (Stat s : stats)
-                            merged_vals[s].push_back(rv1[s][k]);
-                    }
-                }
-                for (size_t k = 0; k < local_rows2.size(); ++k) {
-                    if (local_rows2[k] > j2) {
-                        merged_rows.push_back(global_offsets[ci_next] + local_rows2[k]);
-                        for (Stat s : stats)
-                            merged_vals[s].push_back(rv2[s][k]);
-                    }
-                }
-
-                // merged_rows is already sorted ascending:
-                // chunk ci rows are <= global_col; chunk ci+1 rows are > global_col
-
-                write_column_to_files(global_col, merged_rows, merged_vals,
-                                      current_nnz, p_vec,
-                                      i_out, coo_out, x_outs, bits, stats);
-                ++global_col;
+                uint32_t j1 = n_cols - ov_next + ov; // local col in chunk ci
+                uint32_t j2 = ov;                     // local col in chunk ci+1
+                push_overlap_col(compressor,
+                                 inputs[ci],      inputs[ci_next],
+                                 j1, j2,
+                                 global_offsets[ci], global_offsets[ci_next],
+                                 stat, active_col++);
             }
         }
     }
 
     // -----------------------------------------------------------------------
-    // Step 6: Write p-file
+    // Step 5 – finalize output files and write vars
     // -----------------------------------------------------------------------
-    {
-        std::ofstream p_out(out_prefix + ".p.bin",
-                            std::ios::binary | std::ios::trunc);
-        if (!p_out)
-            throw std::runtime_error("Cannot create p file: " + out_prefix + ".p.bin");
-        p_out.write(reinterpret_cast<const char *>(p_vec.data()),
-                    static_cast<std::streamsize>((total_n + 1) * sizeof(uint64_t)));
-    }
-
-    // -----------------------------------------------------------------------
-    // Step 7: Write metadata JSON
-    // -----------------------------------------------------------------------
-    MetaInfo meta(total_n, total_n, current_nnz,
-                  bits_to_int(bits), fmt, LDZipMatrix::DEFAULT_VERSION);
-    for (Stat s : stats)
-        meta.has_stat[s] = true;
-    write_metadata_json(out_prefix + ".meta.json", meta);
-
-    // -----------------------------------------------------------------------
-    // Step 8: Merge vars file (deduplicated)
-    // -----------------------------------------------------------------------
+    compressor.stream_close();
     merge_vars_files_overlapping(prefixes, all_var_lines, overlap_sizes,
                                  out_prefix + ".vars.txt");
 }
