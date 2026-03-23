@@ -65,9 +65,15 @@ int main(int argc, char** argv) {
     // Subcommand: concat
     std::vector<std::string> input_chunks;
     std::string concat_output;
+    bool concat_overlapping = false;
     auto concat = app.add_subcommand("concat", "Concatenate multiple .ldzip chunks");
     concat->add_option("-i,--inputs", input_chunks, "List of input chunk prefixes")->required()->expected(-1);
     concat->add_option("-o,--output_prefix", concat_output, "Output prefix for concatenated .ldzip")->required();
+    concat->add_flag("--overlapping", concat_overlapping,
+                     "Allow overlapping chunks (tabularPlink / FULL format only). "
+                     "Overlap is auto-detected from the vars files. "
+                     "Above-diagonal entries come from the earlier chunk; "
+                     "below-diagonal entries come from the later chunk.");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -137,7 +143,10 @@ int main(int argc, char** argv) {
 
     } else if (concat->parsed()) {
 
-        ldzip::concat_ldzip(input_chunks, concat_output);
+        if (concat_overlapping)
+            ldzip::concat_ldzip_overlapping(input_chunks, concat_output);
+        else
+            ldzip::concat_ldzip(input_chunks, concat_output);
     }
 
 
