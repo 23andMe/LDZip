@@ -13,8 +13,8 @@ The workflow consists of two main steps:
 
 ## Prerequisites
 
-- `nextflow`
-- `plink2`
+- [`nextflow`](https://www.nextflow.io/docs/latest/install.html)
+- [`plink2`](https://www.cog-genomics.org/plink/2.0/)
 - Sufficient compute (multi-core recommended)
 - Adequate storage for final/intermediate files
 
@@ -42,13 +42,13 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
 ## Step 2: Run Nextflow LD Pipeline for European Samples
 
 
-- Clone your pipeline:
+- Clone the LDZip repository:
 
   ```bash
   git clone git@github.com:23andMe/LDZip.git
   ```
 
-- Extract European samples
+- Retrieve list of EUR samples
 
   ```bash
   awk '$3=="EUR" {print $1}' integrated_call_samples_v3.20130502.ALL.panel > data/EUR.txt
@@ -70,7 +70,7 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
   ld_threads: 1
   ```
 
-- If `plink2` or `ldzip` are NOT available in your `$PATH`, export their paths before running the pipeline:
+- If `plink2` or `ldzip` are NOT available in your `$PATH`, export their paths before running the pipeline (might need to use `set -x` or `setenv` depending on the shell):
 
   ```bash
   export PLINK2=/path/to/plink2
@@ -87,9 +87,9 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
 
 - **Note**
 
-  The above configuration runs locally using only chromsomes 20,21,22 (`chroms`), small LD window (`ld_window_kb: 1`) and a higher r² threshold (`ld_window_r2: 0.2`) so the pipeline runs quickly (typically ~5 minutes). This serves as a sanity check to ensure the inputs are correct and the workflow completes end-to-end with reasonable outputs.
+  The above configuration runs locally for chromosomes 20-22 only (`chroms`), with a small LD window (`ld_window_kb: 1`) and a higher r² threshold (`ld_window_r2: 0.2`) so the pipeline runs quickly (typically ~5 minutes). This serves as a sanity check to ensure the inputs are correct and the workflow completes end-to-end with reasonable outputs.
 
-  For the full run, update these parameters to more reasonable values
+  To run LDZip on all chromosomes, update these parameters to more reasonable values
 
 
   ```yaml
@@ -103,10 +103,6 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
 
   If you are running with a higher resolution as above, you would want to use a HPC. E.g. if you were using a SLURM cluster you could pass the following config file to your command line
 
-
-
-  Example SLURM configuration:
-
   **File: slurm.config**
   ```groovy
   params.partition        = "example_partition"
@@ -114,7 +110,7 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
   process.executor        = "slurm"
   process.cpus            = 1
   process.errorStrategy   = 'retry'
-  process.maxRetries      = 20
+  process.maxRetries      = 5
   process.queue           = params.partition
 
   process.withName: ldPlink {
@@ -134,13 +130,13 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
 
 | Parameter        | Description                                                                 | Example / Notes |
 |------------------|-----------------------------------------------------------------------------|-----------------|
-| `vcf_template`   | Template path to per-chromosome VCF files that you downloaded. `{CHR}` is replaced at runtime. | `${launchDir}/data/1000g.chr{CHR}` |
-| `keep`           | File with list of sample IDs to retain (generated above).               | EUR sample list |
-| `outdir`         | Directory where LD outputs will be written.                                | `output` |
-| `ld_command`     | PLINK2 LD computation flags.                                               | `--r-unphased ref-based cols=id,ref,alt` |
-| `prefix`         | Prefix used for naming output files.                                       | `EUR` |
-| `chroms`         | Comma-separated list of chromosomes to process.                            | `1–22` |
-| `ld_window_kb`   | LD window size in kilobases.                                               | `1000` (1 Mb) |
-| `ld_window_r2`   | Minimum r² threshold for reporting LD pairs.                               | `0.01` |
-| `min_col`        | LD metric column to extract/store.                                         | `UNPHASED_R` |
-| `ld_threads`     | Number of threads used for LD computation.                                 | `8` |
+| `vcf_template`   | Template path to per-chromosome VCF files that you downloaded. `{CHR}` is replaced at runtime | `${launchDir}/data/1000g.chr{CHR}` |
+| `keep`           | File with list of sample IDs to retain (generated above)              | EUR sample list |
+| `outdir`         | Directory where LD outputs will be written                                | `output` |
+| `ld_command`     | PLINK2 LD computation flags                                               | `--r-unphased ref-based cols=id,ref,alt` |
+| `prefix`         | Prefix used for naming output files                                       | `EUR` |
+| `chroms`         | Comma-separated list of chromosomes to process                            | `1–22` |
+| `ld_window_kb`   | LD window size in kilobases                                               | `1000` (1 Mb) |
+| `ld_window_r2`   | Minimum r² threshold for reporting LD pairs                               | `0.01` |
+| `min_col`        | LD metric column to extract/store                                         | `UNPHASED_R` |
+| `ld_threads`     | Number of threads used for LD computation                                 | `8` |
