@@ -1,0 +1,5 @@
+.vscode/
+.DS_Store
+*logs*
+launch.json
+settings.json

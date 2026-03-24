@@ -1,0 +1,23 @@
+# Thresholds are based on the quantization error introduced by different bit-depths (int8, int16, int32, float32)
+# and the specified minimum LD value (`min`) used during compression.
+bits	min	threshold
+8	0.1	0.1
+8	0.01	0.01
+8	0.001	0.00394625
+8	0.0001	0.00394625
+8	0	0.00394625
+16	0.1	0.1
+16	0.01	0.01
+16	0.001	0.001
+16	0.0001	0.0001
+16	0	1.525879e-05
+32	0.1	0.1
+32	0.01	0.01
+32	0.001	0.001
+32	0.0001	0.0001
+32	0	2.328389e-10
+99	0.1	0.1
+99	0.01	0.01
+99	0.001	0.001
+99	0.0001	0.0001
+99	0	0

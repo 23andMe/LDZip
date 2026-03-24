@@ -1,0 +1,23 @@
+
+nextflow_pipeline {
+
+    name "Whole Genome LDZip Stub Test Pipeline"
+    script "main.nf"
+    options "-stub"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                load("$projectDir/tests/yaml/stub.yaml")
+                outdir = "$projectDir/.nf-test"
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}
