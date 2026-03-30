@@ -13,7 +13,7 @@ doc:
 	Rscript -e "roxygen2::roxygenise()"
 	R CMD Rd2pdf . -o man/LDZipMatrix.pdf --force
 
-test: test-data test-index-query test-rsid-query test-get-neighbor test-pairwise test-variant-parsing test-doc test-order test-fail test-na
+test: test-data test-index-query test-rsid-query test-get-neighbor test-pairwise test-variant-parsing test-doc test-order test-fail test-na test-sex-chromosome
 
 test-index-query:
 	Rscript -e "tinytest::run_test_file('inst/tinytest/test_index_query.R')"
@@ -42,10 +42,13 @@ test-variant-parsing:
 test-na:
 	Rscript -e "tinytest::run_test_file('inst/tinytest/test_na.R')"
 
+test-sex-chromosome:
+	Rscript -e "tinytest::run_test_file('inst/tinytest/test_sex_chromosome.R')"
+
 BITS_LIST := 8 16 32 99
 MIN_LIST  := 0 0.0001 0.001 0.01 0.1
 
-test-data: clean-test-data test-data-matrix test-data-tabular test-data-na
+test-data: clean-test-data test-data-matrix test-data-tabular test-data-na test-data-sex-chromosome
 
 clean-test-data:
 	@rm -rf tests/data
@@ -92,5 +95,16 @@ test-data-na:
 		--output_prefix $$out \
 		--min_col D > /dev/null
 
+test-data-sex-chromosome:
+	@Rscript ../scripts/generate_random_tabular.R 1000 tests/data/test_chrY UNPHASED_R Y
+	@out=tests/data/compressed_chrY; \
+	echo "Generating data for chr Y -> $$out"; \
+	../cpp/bin/ldzip compress plinkTabular \
+		--ld_file tests/data/test_chrY.vcor \
+		--snp_file tests/data/test_chrY.vars \
+		--output_prefix $$out \
+		--min 0.0 \
+		--bits 99 \
+		--min_col UNPHASED_R > /dev/null
 
 quick-test: clean-test-data test-data-tabular test-rsid-query
