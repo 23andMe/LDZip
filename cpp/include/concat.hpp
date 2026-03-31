@@ -7,6 +7,7 @@
 namespace ldzip {
 
 void concat_ldzip(const std::vector<std::string> &prefixes,
-                        const std::string &out_prefix);
+                  const std::string &out_prefix,
+                  bool overlapping = false);
 
 } // namespace ldzip

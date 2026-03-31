@@ -1,6 +1,8 @@
 #include "metadata.hpp"
 #include "ldzipmatrix.hpp"
 #include "ldzipcompressor.hpp"
+#include "ldzipconcatenator.hpp"
+#include "snp_util.hpp"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -10,131 +12,69 @@
 
 namespace ldzip {
 
-template <typename T>
-void copy_binary_file_with_offset(const std::string& in_file,
-                                  const std::string& out_file,
-                                  std::streamoff read_pos,
-                                  T add_value,
-                                  size_t byte_size,
-                                  size_t n,
-                                  size_t chunk_size = 1000000) {
-    std::ifstream in(in_file, std::ios::binary);
-    if (!in) throw std::runtime_error("Failed to open input file: " + in_file);
-    std::cout<<" copying "<<in_file<<" to "<<out_file<<std::endl;
-    if (read_pos > 0) {
-        in.seekg(read_pos, std::ios::beg);
-    }
-
-    std::ofstream out(out_file, std::ios::binary | std::ios::app);
-    if (!out) throw std::runtime_error("Failed to open output file: " + out_file);
-
-    size_t remaining = n;
-    if (n == 0) {
-        std::ifstream size_in(in_file, std::ios::binary | std::ios::ate);
-        std::streamoff bytes = size_in.tellg() - read_pos;
-        if (bytes < 0 || bytes % byte_size != 0)
-            throw std::runtime_error("Invalid file size for element type");
-
-        remaining = bytes / byte_size;
-    }
-
-    while (remaining > 0) {
-        size_t to_read = (chunk_size < remaining) ? chunk_size : remaining;
-        std::vector<T> buffer(to_read);
-
-        in.read(reinterpret_cast<char*>(buffer.data()), to_read * byte_size);
-
-        if constexpr (std::is_same_v<T, ldzip::COO::Entry>) {
-            for (auto& e : buffer) {
-                e.j += add_value.j;
-            }
-        } else {
-            if (add_value != T{}) {
-                for (auto& v : buffer) {
-                    v += add_value;
-                }
-            }
-        }
-
-        out.write(reinterpret_cast<char*>(buffer.data()), buffer.size() * byte_size);
-        remaining -= to_read;
-    }
-}
-
-
-void merge_vars_files(const std::vector<std::string> &prefixes, const std::string &out_file) {
-    std::remove(out_file.c_str());
-    std::ofstream out(out_file);
-    if (!out) throw std::runtime_error("Cannot open output file: " + out_file);
-
-    bool firstFile = true;
-
-    for (const auto &prefix : prefixes) {
-        std::ifstream in(prefix + ".vars.txt");
-        if (!in) throw std::runtime_error("Cannot open input file: " + prefix + ".vars.txt");
-
-        std::string line;
-
-        while (std::getline(in, line)) {
-            if (!line.empty() && line[0] == '#')
-            {
-                if (firstFile) out << line << '\n';
-                continue;
-            }
-            out << line << '\n';
-        }
-        firstFile = false;
-    }
-}
-
 
 void concat_ldzip(const std::vector<std::string> &prefixes,
-                        const std::string &out_prefix) {
+                        const std::string &out_prefix,
+                        bool overlapping) {
 
-    uint32_t row_offset = 0, total_rows = 0;
-    uint64_t nnz_offset = 0, total_nnz = 0;
-    Bits bits;
+    std::vector<std::string> var_files;
+    for (const auto& pref : prefixes)
+        var_files.push_back(pref + ".vars.txt");
 
-    for (const auto &pref : prefixes) {
-        LDZipMatrix in(pref);
-        total_rows += static_cast<uint32_t>(in.nrows());
-        total_nnz += static_cast<uint64_t>(in.nnz());
-    }
+    // Build variant boundary information
+    // If overlapping: parses files and validates overlaps
+    // If non-overlapping: treats chunks as independent
+    OverlapVariantInfo ov = read_overlapping_variant_order(var_files, overlapping);
+
+    size_t total_rows = ov.total_variants;
 
     LDZipMatrix in(prefixes[0]);
-    LDZipCompressor concator(total_rows, total_rows, in.format(), in.stats_available(), in.bitsEnum(), out_prefix, LDZipCompressor::Mode::ColumnStream);
-    concator.m().set_nnz(total_nnz);
+    LDZipConcatenator concator(total_rows, total_rows, in.format(), in.stats_available(), in.bitsEnum(), out_prefix);
 
-    // Initialize p_file with 0
+    // Process columns chunk by chunk
+    for (size_t i = 0; i < prefixes.size(); i++) {
+        std::cout << " Processing chunk " << i << " - "<< prefixes[i] << "\n";
+        LDZipMatrix in(prefixes[i]);
+
+        // --- Exclusive columns: raw binary copy (no decode/re-encode) ---
+        concator.process_exclusive_columns(in, ov.chunks[i]);
+
+        // --- Overlap columns with next chunk ---
+        if (overlapping && i + 1 < prefixes.size()) {
+            LDZipMatrix next_mat(prefixes[i+1]);
+            concator.process_overlap_columns(in, next_mat, ov.chunks[i], ov.chunks[i + 1]);
+        }
+    }
+
+    // Close streams and write metadata
+    concator.close();
+
+    // Write merged vars.txt
+    // For overlapping: skip first_overlap_end variants (already written by previous chunk)
+    // For non-overlapping: first_overlap_end=0, so writes all variants
     {
-        std::ofstream con_p(concator.m().pFile(), std::ios::binary | std::ios::app);
-        uint64_t zero = 0;
-        con_p.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
-    }
+        std::string out_vars = out_prefix + ".vars.txt";
+        std::ofstream out(out_vars);
+        if (!out) throw std::runtime_error("Cannot open: " + out_vars);
 
-    for (const auto &pref : prefixes) {
-        std::cout << " reading : " << pref << "\n";
-        LDZipMatrix in(pref);
-        size_t nrows = in.nrows();
-        bits = in.bitsEnum();
-        uint64_t nnz = in.nnz();
-
-        copy_binary_file_with_offset<uint64_t>(in.pFile(), concator.m().pFile(), sizeof(uint64_t), nnz_offset, sizeof(uint64_t), nrows);
-        copy_binary_file_with_offset<int16_t>(in.iFile(), concator.m().iFile(), 0, 0, sizeof(int16_t), nnz);
-        copy_binary_file_with_offset<ldzip::COO::Entry>(in.IFile(), concator.m().IFile(), 0, ldzip::COO::Entry{0, row_offset, 0}, sizeof(ldzip::COO::Entry), 0);
-        for (Stat s : All_Stats()) 
-            if (in.has_stat(s)) {
-                if(bits!=Bits::B99)
-                    copy_binary_file_with_offset<int32_t>(in.xFile(s), concator.m().xFile(s), 0L, 0, bits_to_int(bits) / 8, nnz);
-                else
-                    copy_binary_file_with_offset<float>(in.xFile(s), concator.m().xFile(s), 0L, 0.0f, sizeof(float), nnz);
+        for (size_t i = 0; i < prefixes.size(); i++) {
+            std::ifstream in(var_files[i]);
+            if (!in) throw std::runtime_error("Cannot open: " + var_files[i]);
+            const auto& chunk = ov.chunks[i];
+            std::string line;
+            size_t line_idx = 0;
+            while (std::getline(in, line)) {
+                if (!line.empty() && line[0] == '#') {
+                    if (i == 0) out << line << '\n';
+                    continue;
+                }
+                // Write line if past the overlap with previous chunk
+                if (line_idx >= chunk.first_overlap_end)
+                    out << line << '\n';
+                ++line_idx;
             }
-        row_offset += nrows;
-        nnz_offset += nnz;
+        }
     }
-
-    write_metadata_json(concator.m().metaFile(), concator.m().metaInfo());
-    merge_vars_files(prefixes, out_prefix + ".vars.txt");
 }
 
 
