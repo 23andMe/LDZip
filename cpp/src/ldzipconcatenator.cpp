@@ -409,10 +409,9 @@ OverlapVariantInfo read_overlapping_variant_order(const std::vector<std::string>
         while (true) {
             if (!read_next_variant_id(first, v))
                 throw std::runtime_error(
-                    "File '" + var_files[i] + "' exhausted before finding pivot '" +
-                    pivot + "' from file '" + var_files[i + 1] + "'. "
-                    "Non-adjacent chunks must not overlap: chunk " + std::to_string(i) +
-                    " must end before chunk " + std::to_string(i + 2) + " begins.");
+                    "Chunk overlap error: chunk " + std::to_string(i) + " does not contain first variant ('" +
+                    pivot + "') from chunk " + std::to_string(i + 1) + ". "
+                    "Either adjacent chunks are missing overlap, or non-adjacent chunks overlap.");
             ++local_counts[i];
             if (v == pivot) break;
         }
