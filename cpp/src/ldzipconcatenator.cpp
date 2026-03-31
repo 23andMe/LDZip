@@ -406,37 +406,54 @@ OverlapVariantInfo read_overlapping_variant_order(const std::vector<std::string>
 
         // Step 2: read first (chunk[i]) until we reach the pivot
         std::string v;
-        while (true) {
-            if (!read_next_variant_id(first, v))
-                throw std::runtime_error(
-                    "Chunk overlap error: chunk " + std::to_string(i) + " does not contain first variant ('" +
-                    pivot + "') from chunk " + std::to_string(i + 1) + ". "
-                    "Either adjacent chunks are missing overlap, or non-adjacent chunks overlap.");
+        bool found_pivot = false;
+        while (read_next_variant_id(first, v)) {
             ++local_counts[i];
-            if (v == pivot) break;
+            if (v == pivot) {
+                found_pivot = true;
+                break;
+            }
         }
-        // v == pivot; local_counts[i] now includes the pivot itself
-        size_t overlap_start_local_i = local_counts[i] - 1;  // 0-based index of pivot in chunk[i]
-        size_t new_variants_of_i     = overlap_start_local_i - info.chunks[i].first_overlap_end;
 
-        info.chunks[i + 1].global_start = global_cursor + new_variants_of_i;
+        size_t overlap_start_local_i;
+        size_t new_variants_of_i;
+        size_t overlap_count;
 
-        // Step 3: overlap loop — both streams are now positioned just past the pivot;
-        // read one from each and verify they match until first is exhausted
-        size_t overlap_count = 1;  // pivot already matched
-        std::string v0, v1;
-        while (read_next_variant_id(first, v0)) {
-            ++local_counts[i];
-            if (!read_next_variant_id(second, v1))
-                throw std::runtime_error(
-                    "File '" + var_files[i + 1] + "' exhausted during overlap with '" +
-                    var_files[i] + "'");
-            ++local_counts[i + 1];
-            if (v0 != v1)
-                throw std::runtime_error(
-                    "Overlap mismatch between '" + var_files[i] + "' and '" +
-                    var_files[i + 1] + "': '" + v0 + "' vs '" + v1 + "'");
-            ++overlap_count;
+        if (found_pivot) {
+            // v == pivot; local_counts[i] now includes the pivot itself
+            overlap_start_local_i = local_counts[i] - 1;  // 0-based index of pivot in chunk[i]
+            new_variants_of_i     = overlap_start_local_i - info.chunks[i].first_overlap_end;
+
+            info.chunks[i + 1].global_start = global_cursor + new_variants_of_i;
+
+            // Step 3: overlap loop — both streams are now positioned just past the pivot;
+            // read one from each and verify they match until first is exhausted
+            overlap_count = 1;  // pivot already matched
+            std::string v0, v1;
+            while (read_next_variant_id(first, v0)) {
+                ++local_counts[i];
+                if (!read_next_variant_id(second, v1))
+                    throw std::runtime_error(
+                        "File '" + var_files[i + 1] + "' exhausted during overlap with '" +
+                        var_files[i] + "'");
+                ++local_counts[i + 1];
+                if (v0 != v1)
+                    throw std::runtime_error(
+                        "Overlap mismatch between '" + var_files[i] + "' and '" +
+                        var_files[i + 1] + "': '" + v0 + "' vs '" + v1 + "'");
+                ++overlap_count;
+            }
+        } else {
+            // No overlap found - reset second file stream to beginning
+            overlap_count = 0;
+            overlap_start_local_i = local_counts[i];
+            new_variants_of_i = local_counts[i] - info.chunks[i].first_overlap_end;
+            info.chunks[i + 1].global_start = global_cursor + new_variants_of_i;
+            // Reset second stream since we read the pivot but didn't match it
+            second.close();
+            second.open(var_files[i + 1]);
+            if (!second) throw std::runtime_error("Cannot re-open variant file: " + var_files[i + 1]);
+            local_counts[i + 1] = 0;
         }
 
         std::cout << " Overlap between chunk " << i << " and " << (i + 1)
