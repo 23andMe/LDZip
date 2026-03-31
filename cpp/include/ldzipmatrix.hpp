@@ -174,6 +174,7 @@ namespace ldzip {
 
             // --- Friend Class for Compressors            
             friend class LDZipCompressor;
+            friend class LDZipConcatenator;
 
 
     };

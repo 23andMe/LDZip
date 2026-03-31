@@ -7,6 +7,7 @@
 namespace ldzip {
 
 class LDZipCompressor {
+    friend class LDZipConcatenator;
 public:
     enum class Mode : uint8_t {
         ValueStream,
