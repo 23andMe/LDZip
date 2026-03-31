@@ -127,6 +127,10 @@ namespace ldzip {
             void    writeColumnBinary       (std::ofstream& out, const std::vector<float>& value);
             void    writeColumnTabular      (std::ofstream& out, size_t column);
 
+            // --- COO stream management for concatenation ---
+            void    close_I()               { I_.close(); }
+            void    reopen_I_append()       { I_.open_append(IFile().c_str()); }
+
         private:
 
             enum class FileType { I_VECTOR, I_OVERFLOW_VECTOR, P_VECTOR, METADATA };
