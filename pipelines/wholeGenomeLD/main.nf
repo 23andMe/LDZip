@@ -8,24 +8,30 @@ CHROMS = params.chroms.tokenize(',')*.trim()
 
 process getChromosomeBounds {
     tag { "chr${chr}" }
-    memory { 1.GB }
+    memory { 8.GB * task.attempt }
 
     input:
         tuple val(chr), path(pgen), path(pvar), path(psam)
 
     output:
-        tuple val(chr), stdout, path(pgen), path(pvar), path(psam), emit: bounds
+        tuple val(chr), env(min_pos), env(max_pos), path(pgen), path(pvar), path(psam), emit: bounds
 
     script:
     """
-    min_pos=\$(awk '!/^#/ {print \$2; exit}' ${pvar})
-    max_pos=\$(awk '!/^#/ {pos=\$2} END {print pos}' ${pvar})
-    echo -n "\${min_pos},\${max_pos}"
+	${PLINK2} \\
+		--pfile ${pgen.simpleName} \\
+		--chr ${chr} \\
+		--make-just-pvar \\
+		--threads 1 \\
+		--out plink.chr${chr}
+	min_pos=\$(awk '!/^#/ {print \$2; exit}' plink.chr${chr}.pvar)
+	max_pos=\$(awk '!/^#/ {pos=\$2} END {print pos}' plink.chr${chr}.pvar)
     """
 
     stub:
     """
-    echo -n "60343,227860"
+    min_pos=60343
+    max_pos=227860
     """
 }
 
@@ -270,10 +276,9 @@ workflow {
     // Calculate number of chunks per chromosome for grouping
     def chunks_per_chr = [:]
 
-    chunked_pgen = chr_bounds.bounds.flatMap { chr, bounds_str, pgen, pvar, psam ->
-        def bounds = bounds_str.trim().split(",")
-        def min_pos = bounds[0].toInteger()
-        def max_pos = bounds[1].toInteger()
+    chunked_pgen = chr_bounds.bounds.flatMap { chr, min_pos_str, max_pos_str, pgen, pvar, psam ->
+        def min_pos = min_pos_str.toInteger()
+        def max_pos = max_pos_str.toInteger()
 
         def step = chunk_size - overlap_size
         def chunks = (min_pos..max_pos).step(step).withIndex(1).collect { start_bp, chunk_id ->
