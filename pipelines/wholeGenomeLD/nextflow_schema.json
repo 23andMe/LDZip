@@ -65,6 +65,16 @@
                     "type": "boolean",
                     "description": "Whether to stage intermediate PLINK LD files to outdir",
                     "default": false
+                },
+                "stage_chunk": {
+                    "type": "boolean",
+                    "description": "Whether to stage compressed LDZip chunk files to outdir",
+                    "default": false
+                },
+                "stage_chr": {
+                    "type": "boolean",
+                    "description": "Whether to stage per-chromosome concatenated LDZip files to outdir",
+                    "default": false
                 }
             }
         },
@@ -77,7 +87,7 @@
                     "type": "string",
                     "default": "--r-phased ref-based cols=id,ref,alt,dprime",
                     "description": "string to be passed to plink2 for LD calculation. All LD statistics output by plink2 will be compressed"
-                },                
+                },
                 "ld_threads": {
                     "type": "integer",
                     "default": 4,
@@ -92,6 +102,14 @@
                     "type": "number",
                     "default": 0.01,
                     "description": "minimum r² value threshold; pairs with lower r² are excluded from output."
+                },
+                "chunk_size_kb": {
+                    "type": "integer",
+                    "description": "chunk size in kilobases for parallelization within chromosomes. If not specified, defaults to 2 * ld_window_kb."
+                },
+                "overlap_size_kb": {
+                    "type": "integer",
+                    "description": "overlap size in kilobases between adjacent chunks. If not specified, defaults to ld_window_kb."
                 }
             }
         },
