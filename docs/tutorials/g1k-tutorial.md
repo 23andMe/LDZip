@@ -68,6 +68,8 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
   ld_window_r2: 0.2
   min_col: 'UNPHASED_R'
   ld_threads: 1
+  chunk_size_kb: 20000
+  overlap_size_kb: 1000
   ```
 
 - If `plink2` or `ldzip` are NOT available in your `$PATH`, export their paths before running the pipeline (might need to use `set -x` or `setenv` depending on the shell):
@@ -83,13 +85,18 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
   nextflow run LDZip/pipelines/wholeGenomeLD/main.nf -params-file 1000g.yaml -resume
   ```
 
+  **Tip:** For detailed parameter descriptions and validation rules, run:
+  ```bash
+  nextflow run LDZip/pipelines/wholeGenomeLD/main.nf --help
+  ```
+
   ---
 
 - **Note**
 
   The above configuration runs locally for chromosomes 20-22 only (`chroms`), with a small LD window (`ld_window_kb: 1`) and a higher r² threshold (`ld_window_r2: 0.2`) so the pipeline runs quickly (typically ~5 minutes). This serves as a sanity check to ensure the inputs are correct and the workflow completes end-to-end with reasonable outputs.
 
-  To run LDZip on all chromosomes, update these parameters to more reasonable values
+  To run LDZip on all chromosomes, update these parameters to more reasonable values. Note that `overlap_size_kb` must be greater than or equal to `ld_window_kb`; otherwise, the overlapping regions will not fully cover the specified LD window.
 
 
   ```yaml
@@ -97,6 +104,8 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
   ld_window_kb: 1000
   ld_window_r2: 0.01
   ld_threads: 8
+  chunk_size_kb: 20000
+  overlap_size_kb: 1000  
   ```
 
 - **Running on HPC**
@@ -140,3 +149,7 @@ wget https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call
 | `ld_window_r2`   | Minimum r² threshold for reporting LD pairs                               | `0.01` |
 | `min_col`        | LD metric column to extract/store                                         | `UNPHASED_R` |
 | `ld_threads`     | Number of threads used for LD computation                                 | `8` |
+| `chunk_size_kb`  | *(Optional)* Chunk size in kb. Defaults to `2 × ld_window_kb`             | `2000` |
+| `overlap_size_kb`| *(Optional)* Overlap size in kb. Defaults to `ld_window_kb`               | `1000` |
+| `stage_chunk`    | *(Optional)* Stage intermediate chunk files to outdir (default: `false`)  | `true` |
+| `stage_chr`      | *(Optional)* Stage per-chromosome files to outdir (default: `false`)      | `true` |
