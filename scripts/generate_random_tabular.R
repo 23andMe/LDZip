@@ -1,4 +1,4 @@
-generate_random_tabular <- function(N, prefix, type, num_nonzero = 10000) {
+generate_random_tabular <- function(N, prefix, type, num_nonzero = 10000, chrom = "2") {
   # start with zeros + identity
   mat <- matrix(0, N, N)
   diag(mat) <- 1
@@ -20,7 +20,7 @@ generate_random_tabular <- function(N, prefix, type, num_nonzero = 10000) {
   ref <- rep("A", N)
   alt <- rep("C", N)
 
-  vars <- data.frame(CHROM = 2, POS = pos, ID = snp_ids, REF = ref, ALT = alt)
+  vars <- data.frame(CHROM = chrom, POS = pos, ID = snp_ids, REF = ref, ALT = alt)
 
   # pairwise values
   rows <- list()
@@ -58,9 +58,10 @@ generate_random_tabular <- function(N, prefix, type, num_nonzero = 10000) {
 # only run this block when called via `Rscript`
 if (sys.nframe() == 0) {
   args <- commandArgs(trailingOnly = TRUE)
-  if (length(args) < 2 || length(args) > 3) {
-    stop("Usage: Rscript generate_random_tabular.R <N> <output_prefix> [type]")
+  if (length(args) < 2 || length(args) > 4) {
+    stop("Usage: Rscript generate_random_tabular.R <N> <output_prefix> [type] [chrom]")
   }
   type <- if (length(args) >= 3) args[3] else "UNPHASED_R"
-  generate_random_tabular(as.integer(args[1]), args[2], type)
+  chrom <- if (length(args) >= 4) args[4] else "2"
+  generate_random_tabular(as.integer(args[1]), args[2], type, chrom = chrom)
 }

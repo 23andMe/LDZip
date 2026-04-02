@@ -63,7 +63,7 @@ get_indices_by_region <- function(db_file, region) {
   query <- sprintf(
     "SELECT rowid AS idx
      FROM variants
-     WHERE CHROM = %s AND POS BETWEEN %d AND %d",
+     WHERE CHROM = '%s' AND POS BETWEEN %d AND %d",
     region$chrom, region$start, region$end
   )
   res <- DBI::dbGetQuery(con, query)
@@ -82,7 +82,7 @@ get_rsids_by_region <- function(db_file, region) {
   sql <- sprintf("
     SELECT rowid AS idx, RSNUM, RSLEV
     FROM variants
-    WHERE CHROM = %s AND POS BETWEEN %d AND %d
+    WHERE CHROM = '%s' AND POS BETWEEN %d AND %d
   ", region$chrom, region$start, region$end)
 
   res <- DBI::dbGetQuery(con, sql)
