@@ -92,16 +92,21 @@ process ldPlink {
         --rm-dup exclude-all \\
         --make-just-pvar \\
         --threads ${params.ld_threads} \\
-        --out plink.chr${chr}_${chunk_id}
-    cat plink.chr${chr}_${chunk_id}.pvar | grep -v '#' | cut -f 3 > ids
-    ${PLINK2} \\
-        --pfile ${pfile_base} --extract ids ${subset_samples} \\
-        --ld-window-kb ${params.ld_window_kb} \\
-        --ld-window-r2 ${params.ld_window_r2} \\
-        ${plink_ld_command} \\
-        --threads ${params.ld_threads} \\
-        --memory ${params.ld_threads * (task.memory.toMega()-1024)} \\
-        --out plink.chr${chr}_${chunk_id}
+        --out plink.chr${chr}_${chunk_id} || touch plink.chr${chr}_${chunk_id}.pvar
+
+    if [ -s plink.chr${chr}_${chunk_id}.pvar ]; then
+        cat plink.chr${chr}_${chunk_id}.pvar | grep -v '#' | cut -f 3 > ids
+        ${PLINK2} \\
+            --pfile ${pfile_base} --extract ids ${subset_samples} \\
+            --ld-window-kb ${params.ld_window_kb} \\
+            --ld-window-r2 ${params.ld_window_r2} \\
+            ${plink_ld_command} \\
+            --threads ${params.ld_threads} \\
+            --memory ${params.ld_threads * (task.memory.toMega()-1024)} \\
+            --out plink.chr${chr}_${chunk_id}
+    else
+        touch plink.chr${chr}_${chunk_id}.vcor
+    fi
     """
 
     stub:
@@ -125,12 +130,16 @@ process compressLD {
 
     script:
     """
-    ${LDZIP} compress plinkTabular \\
-      --ld_file ${vcor} \\
-      --snp_file ${snp_file} \\
-      --output_prefix chr${chr}_${chunk_id}.ldzip \\
-      --min ${params.min} \\
-      --bits ${params.bits} --min_col ${params.min_col}
+    if [ -s ${vcor} ]; then
+        ${LDZIP} compress plinkTabular \\
+          --ld_file ${vcor} \\
+          --snp_file ${snp_file} \\
+          --output_prefix chr${chr}_${chunk_id}.ldzip \\
+          --min ${params.min} \\
+          --bits ${params.bits} --min_col ${params.min_col}
+    else
+        touch chr${chr}_${chunk_id}.ldzip.{i.bin,io.bin,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
+    fi
     """
 
     stub:
@@ -297,7 +306,13 @@ workflow {
     chr_grouped = compressed_ld_files
         .map { chr, chunk_id, files -> tuple(groupKey(chr, chunks_per_chr[chr.toString()]), files) }
         .groupTuple()
-        .map { chr, file_lists -> tuple(chr, file_lists.flatten()) }
+        .map { chr, file_lists ->
+            def filtered = file_lists.findAll { chunk_files ->
+                chunk_files.find { it.name.endsWith('.vars.txt') }?.size() > 0
+            }
+            tuple(chr, filtered.flatten())
+        }
+        .filter { chr, files -> files.size() > 0 }
 
     // Concat chunks within each chromosome with --overlapping
     chr_concat = concatChromosome(chr_grouped).data
