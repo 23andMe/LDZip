@@ -22,12 +22,13 @@ int count_lines(const std::string& filename) {
 int countFields(const std::string& filename) {
     std::ifstream in(filename);
     if (!in) throw std::runtime_error("Cannot open file: " + filename);
-    std::string line;
-    while (std::getline(in, line)) 
-        if (!line.empty() && line[0] != '#') {
-            return std::count(line.begin(), line.end(), '\t') + 1;
-        }
-    throw std::runtime_error("No single-hash header line found in file: " + filename);
+    std::string line, header;
+    while (std::getline(in, line))
+        if (!line.empty() && line[0] == '#')
+            header = line;
+    if (!header.empty())
+        return std::count(header.begin(), header.end(), '\t') + 1;
+    throw std::runtime_error("No header line found in file: " + filename);
 }
 
 std::vector<std::string> getFields(const std::string& filename, bool no_header) {
