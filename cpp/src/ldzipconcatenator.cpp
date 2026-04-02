@@ -305,7 +305,7 @@ std::pair<uint64_t, uint64_t> LDZipConcatenator::get_I_range(const std::string& 
 
         pos += sizeof(e);
     }
-    return !s ? std::pair{0ULL, 0ULL} : std::pair{start, ((end ? end : pos) - start) / sizeof(COO::Entry)};
+    return !s ? std::pair<uint64_t, uint64_t>{0, 0} : std::pair<uint64_t, uint64_t>{start, ((end ? end : pos) - start) / sizeof(COO::Entry)};
 }
 
 // Explicit template instantiations for stream-based version
