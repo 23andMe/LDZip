@@ -14,7 +14,7 @@ test_cases <- list(
 )
 
 # load original matrix
-df <- read.table("../../tests/data/test_tabular.vcor", header = T, stringsAsFactors = FALSE)
+df <- read.table("../../tests/data/test_tabular.vcor", header = T, stringsAsFactors = FALSE, comment.char = "", check.names = FALSE)
 
 
 # list of compressed outputs
@@ -37,8 +37,8 @@ for (bits in bits_list) {
 
         min_thresh = 0.0
         df_subset = subset(df, abs(UNPHASED_R) > as.numeric(min) & (df$UNPHASED_R^2) >=min_thresh)
-        val_old <- unique(c(df_subset[df_subset$ID_A == rsid, "ID_B"], 
-                          df_subset[df_subset$ID_B == rsid, "ID_A"], 
+        val_old <- unique(c(df_subset[df_subset$`#ID_A` == rsid, "ID_B"],
+                          df_subset[df_subset$ID_B == rsid, "#ID_A"],
                           rsid))   # add diagonal entry
         val_old <- sort(val_old)
 

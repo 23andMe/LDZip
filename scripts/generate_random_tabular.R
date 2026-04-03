@@ -44,9 +44,12 @@ generate_random_tabular <- function(N, prefix, type, num_nonzero = 10000, chrom 
   vcor <- do.call(rbind, rows)
 
   # write files
+  vcor_names <- names(vcor)
+  vcor_names[1] <- paste0("#", vcor_names[1])
   write.table(vcor,
               file = paste0(prefix, ".vcor"),
-              sep = "\t", quote = FALSE, row.names = FALSE)
+              sep = "\t", quote = FALSE, row.names = FALSE,
+              col.names = vcor_names)
   write.table(vars,
               file = paste0(prefix, ".vars"),
               sep = "\t", quote = FALSE, row.names = FALSE,
