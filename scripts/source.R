@@ -93,12 +93,12 @@ read_tabular_ld_matrix <- function(path) {
   ids <- ds$ID
   N   <- length(ids)
 
-  df  <- read.table(paste0(path, ".vcor"), header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  df  <- read.table(paste0(path, ".vcor"), header = TRUE, sep = "\t", stringsAsFactors = FALSE, comment.char = "", check.names = FALSE)
 
   R <- matrix(0.0, nrow = N, ncol = N, dimnames = list(ids, ids))
 
   for (i in seq_len(nrow(df))) {
-    a <- df$ID_A[i]
+    a <- df$`#ID_A`[i]
     b <- df$ID_B[i]
     val <- df$UNPHASED_R[i]
     R[a, b] <- val

@@ -65,9 +65,11 @@ int main(int argc, char** argv) {
     // Subcommand: concat
     std::vector<std::string> input_chunks;
     std::string concat_output;
+    bool overlapping = false;
     auto concat = app.add_subcommand("concat", "Concatenate multiple .ldzip chunks");
     concat->add_option("-i,--inputs", input_chunks, "List of input chunk prefixes")->required()->expected(-1);
     concat->add_option("-o,--output_prefix", concat_output, "Output prefix for concatenated .ldzip")->required();
+    concat->add_flag("--overlapping", overlapping, "Input chunks have overlapping variant regions");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -137,7 +139,7 @@ int main(int argc, char** argv) {
 
     } else if (concat->parsed()) {
 
-        ldzip::concat_ldzip(input_chunks, concat_output);
+        ldzip::concat_ldzip(input_chunks, concat_output, overlapping);
     }
 
 

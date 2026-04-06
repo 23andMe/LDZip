@@ -47,6 +47,21 @@ class COO {
             fstream_.flush();
         }
 
+        void close() {
+            if (fstream_.is_open()) {
+                fstream_.close();
+            }
+        }
+
+        void open_append(const char* path) {
+            if (fstream_.is_open()) {
+                fstream_.close();
+            }
+            fstream_.open(path, std::ios::out | std::ios::binary | std::ios::app);
+            if (!fstream_) throw std::runtime_error("Cannot reopen for append: " + std::string(path));
+            mode_ = 'w';
+        }
+
         static Key pack(uint32_t i, uint32_t j) {
             return (uint64_t(i) << 32) | j;
         }

@@ -59,11 +59,11 @@ test-tabular:
 
 test-concat:
 	@rm -rf tests/output/*
-	@cd tests && ./test_tabular_concat.sh && ./test_square_concat.sh  && ./test_concat_sequential.sh
+	@cd tests && ./test_tabular_concat.sh && ./test_square_concat.sh && ./test_tabular_concat_overlap.sh && ./test_concat_sequential.sh
 
 test-overflow:
 	@rm -rf tests/output/*
-	@cd tests && ./test_overflow_tabular.sh && ./test_overflow_concat.sh
+	@cd tests && ./test_overflow_tabular.sh && ./test_overflow_concat.sh && ./test_overflow_concat_overlap.sh
 
 test-filter:
 	@rm -rf tests/output/*

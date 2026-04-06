@@ -2,6 +2,11 @@
 
 This pipeline manages the scatter gather to generate a compressed whole genome LD matrix from PLINK2 genotype data. It uses PLINK2 to calculate the LD for each chromosome, uses `ldzip` to compress each matrix, block-diagonal concatenates them to generate the whole genome matrix, and finally builds and SQLITE database for fast querying with variant IDs.
 
+**For detailed parameter descriptions and validation rules, run:**
+```bash
+nextflow run main.nf --help
+```
+
 ---
 
 ## Run Quick Test
@@ -33,9 +38,21 @@ This pipeline manages the scatter gather to generate a compressed whole genome L
 - `--ld_window_kb` : Window size in kb for LD computation (default: `1000`).
 - `--ld_window_r2` : Minimum r² threshold for reporting LD pairs (default: `0.01`).
 
+### Chunking parameters
+- `--chunk_size_kb` : Size of each chunk in kilobases. If not specified, defaults to `2 × ld_window_kb`.
+- `--overlap_size_kb` : Overlap between adjacent chunks in kilobases. If not specified, defaults to `ld_window_kb`.
+
 ### LD Compression parameters
 - `--bits` : Number of bits for LD quantization (`8`, `16`, `32`, or `99` for raw float).
 - `--min` : Minimum absolute LD value to retain (default: `0.0`).
 - `--min_col` : Column to apply the above `min` filter on (default: `PHASED_R`).
+
+### Output parameters
+- `--outdir` : Output directory (default: current directory).
+- `--prefix` : Prefix for final output files (default: `out`).
+- `--stage_pgen` : Stage converted pgen files to outdir (only when using `--vcf_template`, default: `false`).
+- `--stage_plink` : Stage intermediate PLINK LD files to outdir (default: `false`).
+- `--stage_chunk` : Stage compressed LDZip chunk files to outdir (default: `false`).
+- `--stage_chr` : Stage per-chromosome concatenated LDZip files to outdir (default: `false`).
 
 ---

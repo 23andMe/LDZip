@@ -1,3 +1,4 @@
 pfile_template: '${projectDir}/../../assets/g1k.chr{CHR}'
 chroms: '20,21,22'
+ld_window_kb: 50
 stage_plink: true
