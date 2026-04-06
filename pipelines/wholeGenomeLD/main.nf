@@ -19,7 +19,7 @@ process getChromosomeBounds {
     script:
     """
 	${PLINK2} \\
-		--pfile ${pgen.simpleName} \\
+		--pfile ${pgen.baseName} \\
 		--chr ${chr} \\
 		--make-just-pvar \\
 		--threads 1 \\
