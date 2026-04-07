@@ -90,10 +90,16 @@ bool LDZipMatrix::checkFiles() const {
 
 bool LDZipMatrix::checkOverflowFiles() const {
     if (version_ != "1.1") {
-        std::string path = file_prefix_ +
-                           fileSuffix(FileType::I_OVERFLOW_VECTOR);
-        if (!std::filesystem::exists(path)) {
-            throw std::runtime_error("LDZipMatrix:: Missing file: " + path);
+        std::string bin_path = file_prefix_ +
+                               fileSuffix(FileType::I_OVERFLOW_VECTOR);
+        std::string index_path = file_prefix_ +
+                                 fileSuffix(FileType::I_OVERFLOW_INDEX);
+
+        if (!std::filesystem::exists(bin_path)) {
+            throw std::runtime_error("LDZipMatrix:: Missing file: " + bin_path);
+        }
+        if (!std::filesystem::exists(index_path)) {
+            throw std::runtime_error("LDZipMatrix:: Missing file: " + index_path);
         }
     }
     return true;
