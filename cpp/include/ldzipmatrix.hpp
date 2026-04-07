@@ -63,6 +63,7 @@ namespace ldzip {
             std::string     pFile()             const noexcept { return file_prefix_ + fileSuffix(FileType::P_VECTOR); }
             std::string     iFile()             const noexcept { return file_prefix_ + fileSuffix(FileType::I_VECTOR); }
             std::string     IFile()             const noexcept { return file_prefix_ + fileSuffix(FileType::I_OVERFLOW_VECTOR); }
+            std::string     IIndexFile()        const noexcept { return file_prefix_ + fileSuffix(FileType::I_OVERFLOW_INDEX); }
             std::string     xFile(Stat s)       const noexcept { return file_prefix_ + xSuffix(s); }
 
             // --- Low Level vector access ---
@@ -133,11 +134,12 @@ namespace ldzip {
 
         private:
 
-            enum class FileType { I_VECTOR, I_OVERFLOW_VECTOR, P_VECTOR, METADATA };
+            enum class FileType { I_VECTOR, I_OVERFLOW_VECTOR, I_OVERFLOW_INDEX, P_VECTOR, METADATA };
             static constexpr const char* fileSuffix(FileType type) {
                 switch (type) {
                     case FileType::I_VECTOR:            return ".i.bin";
                     case FileType::I_OVERFLOW_VECTOR:   return ".io.bin";
+                    case FileType::I_OVERFLOW_INDEX:    return ".io.index";
                     case FileType::P_VECTOR:            return ".p.bin";
                     case FileType::METADATA:            return ".meta.json";
                 }

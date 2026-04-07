@@ -35,7 +35,7 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
       bits_(bits),
       format_(format),
       file_prefix_(prefix),
-      I_(IFile().c_str(), 'w'){
+      I_(IFile().c_str(), IIndexFile().c_str(), 'w'){
 
     for (Stat s : stats) {
         has_stat_[s] = true;
@@ -59,7 +59,7 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
 
 
 LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),  
-                                                        I_(IFile().c_str(), 'r') {
+                                                        I_(IFile().c_str(), IIndexFile().c_str(), 'r') {
     checkFiles();
 
     MetaInfo meta = read_metadata_json(file_prefix_ + fileSuffix(FileType::METADATA));
