@@ -172,11 +172,11 @@ void LDZipConcatenator::process_overlap_columns(const LDZipMatrix& current_mat,
     uint32_t last_overlap_col = gs_current + current_chunk.n_variants;
     uint64_t overlap_nnz = get_p_value(last_overlap_col) - get_p_value(first_overlap_col);
     current_nnz_ += overlap_nnz;
+    current_I_offset_ = overlap_merger_.m_.I_.get_index();
 }
 
 void LDZipConcatenator::process_exclusive_columns(const LDZipMatrix& current_mat,
                                                    const ChunkBoundary& current_chunk) {
-    uint32_t gs_i = current_chunk.global_start;
     size_t lc_start = current_chunk.first_overlap_end;
     size_t lc_end   = current_chunk.second_overlap_start;
 
@@ -189,20 +189,25 @@ void LDZipConcatenator::process_exclusive_columns(const LDZipMatrix& current_mat
     uint64_t p_end   = current_mat.get_p(lc_end);
     size_t excl_nrows = lc_end - lc_start;
     uint64_t excl_nnz = p_end - p_start;
-    auto [I_start, I_count] = get_I_range(current_mat.IFile(), lc_start, lc_end);
+    auto [I_start, I_count] = get_I_range(current_mat.IIndexFile(), lc_start, lc_end);
 
     Bits bits = current_mat.bitsEnum();
 
     // Adjust offset: subtract p[lc_start] since source p-values are cumulative
     uint64_t p_offset_adjustment = current_nnz_ - p_start;
+    uint64_t I_offset_adjustment = current_I_offset_ - (I_start / sizeof(uint32_t));
 
     // Use stream-based copying for p, i, and x files (keeps streams open)
     copy_binary_file_with_offset<uint64_t>(current_mat.pFile(), overlap_merger_.p_stream_,
         (lc_start + 1) * sizeof(uint64_t), p_offset_adjustment, sizeof(uint64_t), excl_nrows);
 
     // Use file-based copying for I.bin (COO overflow file - no stream for this)
-    copy_binary_file_with_offset_file<COO::Entry>(current_mat.IFile(), overlap_merger_.m_.IFile(),
-        I_start, COO::Entry{0, gs_i, 0}, sizeof(COO::Entry), I_count);
+    copy_binary_file_with_offset_file<uint32_t>(current_mat.IFile(), overlap_merger_.m_.IFile(),
+        I_start, uint32_t{0}, sizeof(uint32_t), I_count);
+
+    // Copy and adjust index entries (skip first boundary - already written by constructor or overlap)
+    copy_binary_file_with_offset_file<uint64_t>(current_mat.IIndexFile(), overlap_merger_.m_.IIndexFile(),
+        (lc_start + 1) * sizeof(uint64_t), I_offset_adjustment, sizeof(uint64_t), excl_nrows);
 
     copy_binary_file_with_offset<int16_t>(current_mat.iFile(), overlap_merger_.i_stream_,
         p_start * sizeof(int16_t), static_cast<int16_t>(0), sizeof(int16_t), excl_nnz);
@@ -219,6 +224,7 @@ void LDZipConcatenator::process_exclusive_columns(const LDZipMatrix& current_mat
 
     // Track nnz for exclusive columns
     current_nnz_ += excl_nnz;
+    current_I_offset_ += I_count;
 }
 
 // Stream-based version - uses existing open stream
@@ -253,15 +259,9 @@ void LDZipConcatenator::copy_binary_file_with_offset(const std::string& in_file,
 
         in.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(to_read * byte_size));
 
-        if constexpr (std::is_same_v<T, COO::Entry>) {
-            for (auto& e : buffer) {
-                e.j += add_value.j;
-            }
-        } else {
-            if (add_value != T{}) {
-                for (auto& v : buffer) {
-                    v += add_value;
-                }
+        if (add_value != T{}) {
+            for (auto& v : buffer) {
+                v += add_value;
             }
         }
 
@@ -285,27 +285,17 @@ void LDZipConcatenator::copy_binary_file_with_offset_file(const std::string& in_
     copy_binary_file_with_offset<T>(in_file, out_stream, read_pos, add_value, byte_size, n, chunk_size);
 }
 
-std::pair<uint64_t, uint64_t> LDZipConcatenator::get_I_range(const std::string& f, size_t a, size_t b) {
-    std::ifstream in(f, std::ios::binary);
-    if (!in) throw std::runtime_error("Cannot open I file");
+std::pair<uint64_t, uint64_t> LDZipConcatenator::get_I_range(const std::string& index_file, size_t a, size_t b) {
+    std::ifstream index_in(index_file, std::ios::binary);
+    if (!index_in) throw std::runtime_error("Cannot open I index file: " + index_file);
 
-    COO::Entry e;
-    uint64_t pos = 0, start = 0, end = 0;
-    bool s = false;
-    while (in.read(reinterpret_cast<char*>(&e), sizeof(e))) {
-        if (!s && e.j >= a) {
-            start = pos;
-            s = true;
-        }
+    uint64_t start_pos, end_pos;
+    index_in.seekg(a * sizeof(uint64_t), std::ios::beg);
+    index_in.read(reinterpret_cast<char*>(&start_pos), sizeof(uint64_t));
+    index_in.seekg(b * sizeof(uint64_t), std::ios::beg);
+    index_in.read(reinterpret_cast<char*>(&end_pos), sizeof(uint64_t));
 
-        if (s && e.j >= b) {
-            end = pos;
-            break;
-        }
-
-        pos += sizeof(e);
-    }
-    return !s ? std::pair<uint64_t, uint64_t>{0, 0} : std::pair<uint64_t, uint64_t>{start, ((end ? end : pos) - start) / sizeof(COO::Entry)};
+    return {start_pos * sizeof(uint32_t), end_pos - start_pos};
 }
 
 // Explicit template instantiations for stream-based version
@@ -315,7 +305,7 @@ template void LDZipConcatenator::copy_binary_file_with_offset<int32_t>(const std
 template void LDZipConcatenator::copy_binary_file_with_offset<float>(const std::string&, std::fstream&, std::streamoff, float, size_t, size_t, size_t);
 
 // Explicit template instantiations for file-based version (for I.bin)
-template void LDZipConcatenator::copy_binary_file_with_offset_file<COO::Entry>(const std::string&, const std::string&, std::streamoff, COO::Entry, size_t, size_t, size_t);
+template void LDZipConcatenator::copy_binary_file_with_offset_file<uint32_t>(const std::string&, const std::string&, std::streamoff, uint32_t, size_t, size_t, size_t);
 
 namespace {
 
