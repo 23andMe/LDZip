@@ -20,7 +20,6 @@ static void validate_sorted(const std::vector<T>& vec, const char* name) {
 }
 
 // --- Constructors ---
-LDZipMatrix::LDZipMatrix() = default;
 
 LDZipMatrix::LDZipMatrix(size_t nrows,
                          size_t ncols,
@@ -58,7 +57,7 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
 }
 
 
-LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),  
+LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),
                                                         I_(IFile().c_str(), IIndexFile().c_str(), 'r') {
     checkFiles();
 
@@ -144,7 +143,7 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
         i_stream_.read(reinterpret_cast<char*>(i_buf.data()), nnz_column * sizeof(uint32_t));
         if (!i_stream_) throw std::runtime_error("Error reading i file: " + iFile());
     } else {
-        
+
         using T = int16_t;
         static constexpr T DELTA_SENTINEL = std::numeric_limits<T>::max();
         // static constexpr T DELTA_SENTINEL = 4;
