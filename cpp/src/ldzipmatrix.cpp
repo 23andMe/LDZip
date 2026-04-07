@@ -71,7 +71,6 @@ LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),
     has_stat_ = meta.has_stat;
     version_ = meta.version;
     checkOverflowFiles();
-    I_.load();
     checkStatFiles();
     p_stream_.open(pFile(), std::ios::in | std::ios::binary);
     i_stream_.open(iFile(), std::ios::in | std::ios::binary);
@@ -154,11 +153,12 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
         i_stream_.seekg(start * sizeof(T), std::ios::beg);
         i_stream_.read(reinterpret_cast<char*>(deltas.data()), nnz_column * sizeof(T));
         if (!i_stream_) throw std::runtime_error("Error reading delta stream");
+        I_.load_column(column);
 
         uint64_t delta;
         if (deltas[0] == DELTA_SENTINEL) {
             // overflow → fetch true delta from COO
-            delta = I_.get(0, column);
+            delta = I_.pop();
         } else {
             delta = static_cast<uint64_t>(deltas[0]);
         }
@@ -166,7 +166,7 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
 
         for (size_t idx = 1; idx < nnz_column; ++idx) {
             if (deltas[idx] == DELTA_SENTINEL) {
-                delta = I_.get(idx, column);
+                delta = I_.pop();
             } else {
                 delta = static_cast<uint64_t>(deltas[idx]);
             }

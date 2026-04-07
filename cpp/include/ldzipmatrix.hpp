@@ -130,7 +130,7 @@ namespace ldzip {
 
             // --- COO stream management for concatenation ---
             void    close_I()               { I_.close(); }
-            void    reopen_I_append()       { I_.open_append(IFile().c_str()); }
+            void    reopen_I_append()       { I_.open_append(); }
 
         private:
 
