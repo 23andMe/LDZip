@@ -21,7 +21,7 @@ echo "➤ Compressing with ldzip using type [$TYPE]..."
 
 
 echo "➤ Checking compressed output files..."
-for f in .x.$TYPE.bin .i.bin .io.bin .p.bin .meta.json .vars.txt; do
+for f in .x.$TYPE.bin .i.bin .io.bin .io.index .p.bin .meta.json .vars.txt; do
     if [ "$f" != ".io.bin" ] && [ ! -s "$OUT_DIR/compressed$f" ]; then
         echo "❌ Missing or empty file: $OUT_DIR/compressed$f"
         exit 1

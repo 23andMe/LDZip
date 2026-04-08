@@ -46,7 +46,7 @@ Both subcommands share the same options:
 |-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
 | `--ld_file`     | Path to the input LD matrix file. For `plinkSquare`, this is the binary `.ld` file; for `plinkTabular`, this is the tabular LD file.       | **Required**       |
 | `--snp_file`    | Path to the SNP list file corresponding to the LD matrix. This ensures correct indexing of variants.                                       | **Required**       |
-| `--output_prefix` | Prefix for the compressed `.ldzip` output files. The compressor generates multiple files with this prefix (e.g. `.x.bin`, `.i.bin`, `io.bin`, `.p.bin`, `.meta.json`). | **Required**       |
+| `--output_prefix` | Prefix for the compressed `.ldzip` output files. The compressor generates multiple files with this prefix (e.g. `.x.bin`, `.i.bin`, `.io.bin`, `.io.index`, `.p.bin`, `.meta.json`). | **Required**       |
 | `--bits`        | Compression precision level. Supports `8`, `16`, `32`, or `99` (no quantization). Lower bit-widths reduce file size at the cost of precision. | Default: *8*       |
 | `--min`         | Minimum absolute LD threshold. Pairs with LD values below this cutoff are discarded to save space.                                       | Default: *1e-4*    |
 | `--format`      | Matrix storage format. Can be `upper` (store only the upper triangle, halving space) or `full` (store the entire matrix).                  | Default: *full*    |
@@ -74,7 +74,7 @@ The `decompress` operation has the following options:
 
 | Option          | Description                                                                                                                               | Required / Default |
 |-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
-| `--input_prefix`     | Path to the input compressed LD matrix file (expects `.x.bin`, `.i.bin`, `io.bin`,  `.p.bin`, `.meta.json`)      | **Required**       |
+| `--input_prefix`     | Path to the input compressed LD matrix file (expects `.x.bin`, `.i.bin`, `.io.bin`, `.io.index`, `.p.bin`, `.meta.json`)      | **Required**       |
 | `--output_prefix` | Prefix for the uncompressed output files | **Required**       |
 | `--type`        | Output Type (tabular or binary)  | Default: *binary*       |
 
@@ -100,7 +100,7 @@ The `filter` operation has the following options:
 
 | Option                | Description                                                                                                                               | Required / Default |
 |-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
-| `--input_prefix`      | Path to the input compressed LD matrix file (expects `.x.bin`, `.i.bin`, `io.bin`, `.p.bin`, `.meta.json`)      | **Required**       |
+| `--input_prefix`      | Path to the input compressed LD matrix file (expects `.x.bin`, `.i.bin`, `.io.bin`, `.io.index`, `.p.bin`, `.meta.json`)      | **Required**       |
 | `--output_prefix`     | Prefix for the filtered compressed LD matrix file | **Required**       |
 | `--range`             | Range of indices to filter (0-based START-END)    |       |
 | `--keep`              | File with list of indices (0-based)               | Default: *binary*       |

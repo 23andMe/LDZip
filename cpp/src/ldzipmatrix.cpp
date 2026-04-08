@@ -20,7 +20,6 @@ static void validate_sorted(const std::vector<T>& vec, const char* name) {
 }
 
 // --- Constructors ---
-LDZipMatrix::LDZipMatrix() = default;
 
 LDZipMatrix::LDZipMatrix(size_t nrows,
                          size_t ncols,
@@ -35,7 +34,7 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
       bits_(bits),
       format_(format),
       file_prefix_(prefix),
-      I_(IFile().c_str(), 'w'){
+      I_(IFile().c_str(), IIndexFile().c_str(), 'w'){
 
     for (Stat s : stats) {
         has_stat_[s] = true;
@@ -58,8 +57,8 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
 }
 
 
-LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),  
-                                                        I_(IFile().c_str(), 'r') {
+LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),
+                                                        I_(IFile().c_str(), IIndexFile().c_str(), 'r') {
     checkFiles();
 
     MetaInfo meta = read_metadata_json(file_prefix_ + fileSuffix(FileType::METADATA));
@@ -71,7 +70,6 @@ LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix),
     has_stat_ = meta.has_stat;
     version_ = meta.version;
     checkOverflowFiles();
-    I_.load();
     checkStatFiles();
     p_stream_.open(pFile(), std::ios::in | std::ios::binary);
     i_stream_.open(iFile(), std::ios::in | std::ios::binary);
@@ -92,10 +90,16 @@ bool LDZipMatrix::checkFiles() const {
 
 bool LDZipMatrix::checkOverflowFiles() const {
     if (version_ != "1.1") {
-        std::string path = file_prefix_ +
-                           fileSuffix(FileType::I_OVERFLOW_VECTOR);
-        if (!std::filesystem::exists(path)) {
-            throw std::runtime_error("LDZipMatrix:: Missing file: " + path);
+        std::string bin_path = file_prefix_ +
+                               fileSuffix(FileType::I_OVERFLOW_VECTOR);
+        std::string index_path = file_prefix_ +
+                                 fileSuffix(FileType::I_OVERFLOW_INDEX);
+
+        if (!std::filesystem::exists(bin_path)) {
+            throw std::runtime_error("LDZipMatrix:: Missing file: " + bin_path);
+        }
+        if (!std::filesystem::exists(index_path)) {
+            throw std::runtime_error("LDZipMatrix:: Missing file: " + index_path);
         }
     }
     return true;
@@ -145,7 +149,7 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
         i_stream_.read(reinterpret_cast<char*>(i_buf.data()), nnz_column * sizeof(uint32_t));
         if (!i_stream_) throw std::runtime_error("Error reading i file: " + iFile());
     } else {
-        
+
         using T = int16_t;
         static constexpr T DELTA_SENTINEL = std::numeric_limits<T>::max();
         // static constexpr T DELTA_SENTINEL = 4;
@@ -154,11 +158,12 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
         i_stream_.seekg(start * sizeof(T), std::ios::beg);
         i_stream_.read(reinterpret_cast<char*>(deltas.data()), nnz_column * sizeof(T));
         if (!i_stream_) throw std::runtime_error("Error reading delta stream");
+        I_.load_column(column);
 
         uint64_t delta;
         if (deltas[0] == DELTA_SENTINEL) {
             // overflow → fetch true delta from COO
-            delta = I_.get(0, column);
+            delta = I_.pop();
         } else {
             delta = static_cast<uint64_t>(deltas[0]);
         }
@@ -166,7 +171,7 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
 
         for (size_t idx = 1; idx < nnz_column; ++idx) {
             if (deltas[idx] == DELTA_SENTINEL) {
-                delta = I_.get(idx, column);
+                delta = I_.pop();
             } else {
                 delta = static_cast<uint64_t>(deltas[idx]);
             }

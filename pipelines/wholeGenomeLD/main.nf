@@ -138,13 +138,13 @@ process compressLD {
           --min ${params.min} \\
           --bits ${params.bits} --min_col ${params.min_col}
     else
-        touch chr${chr}_${chunk_id}.ldzip.{i.bin,io.bin,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
+        touch chr${chr}_${chunk_id}.ldzip.{i.bin,io.bin,io.index,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
     fi
     """
 
     stub:
     """
-    touch chr${chr}_${chunk_id}.ldzip.{i.bin,io.bin,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
+    touch chr${chr}_${chunk_id}.ldzip.{i.bin,io.bin,io.index,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
     """
 }
 
@@ -173,7 +173,7 @@ process concatChromosome {
 
     stub:
     """
-    touch concat_chr${chr}.{i.bin,io.bin,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
+    touch concat_chr${chr}.{i.bin,io.bin,io.index,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
     """
 }
 
@@ -201,7 +201,7 @@ process concatGenome {
     """
     stub:
     """
-    touch concat.{i.bin,io.bin,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
+    touch concat.{i.bin,io.bin,io.index,x.PHASED_R.bin,x.DPRIME.bin,p.bin,meta.json,vars.txt}
     """
 }
 

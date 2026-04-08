@@ -51,7 +51,7 @@ private:
     template <typename T>
     void copy_binary_file_with_offset_file(const std::string& in_file, const std::string& out_file, std::streamoff read_pos, T add_value, size_t byte_size, size_t n, size_t chunk_size = 1000000);
 
-    std::pair<uint64_t, uint64_t> get_I_range(const std::string& f, size_t a, size_t b);
+    std::pair<uint64_t, uint64_t> get_I_range(const std::string& index_file, size_t a, size_t b);
 
     // Helper to clear merge buffers
     void clear_merge_buffers(const LDZipMatrix& mat);
@@ -69,6 +69,9 @@ private:
 
     // Track total nnz internally as we process chunks
     uint64_t current_nnz_ = 0;
+
+    // Track total COO entries as we process chunks
+    uint64_t current_I_offset_ = 0;
 };
 
 } // namespace ldzip

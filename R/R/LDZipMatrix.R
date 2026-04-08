@@ -18,8 +18,9 @@
 #' format. This format stores, for each column, a pointer to its nonzero entries
 #' (\code{.p.bin}), the corresponding row indices (\code{.i.bin}), and one or more
 #' compressed value streams (\code{.x.<stats>.bin}). In fact, it stores only the
-#' delta encoded values of row indices in (\code{.i.bin}) so that they fit within 
-#' a 16 bit integer, and stores the few overflowing delta values in (\code{.io.bin}) 
+#' delta encoded values of row indices in (\code{.i.bin}) so that they fit within
+#' a 16 bit integer, and stores the few overflowing delta values in (\code{.io.bin})
+#' with corresponding column boundaries in (\code{.io.index}) 
 #'
 #' Each \code{.x.<stats>.bin} file corresponds to a particular LD statistic
 #' (e.g., \code{PHASED_R}, \code{UNPHASED_R2}, \code{D}, \code{DPRIME}). Multiple
@@ -36,6 +37,7 @@
 #' \itemize{
 #'   \item \code{<prefix>.i.bin} – row indices for nonzero entries delta encoded
 #'   \item \code{<prefix>.io.bin} – overflowing row indices for nonzero entries
+#'   \item \code{<prefix>.io.index} – column boundaries for overflow entries
 #'   \item \code{<prefix>.p.bin} – column pointers marking the start of each column in \code{i} and \code{x}
 #'   \item \code{<prefix>.x.<stats>.bin} – compressed numeric values for a given LD statistic
 #'   \item \code{<prefix>.meta.json} – json file describing associated metadata

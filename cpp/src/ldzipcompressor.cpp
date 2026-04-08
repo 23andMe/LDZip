@@ -168,7 +168,7 @@ void LDZipCompressor::write_i() {
             std::vector<T> deltas(i_col.size());
             uint64_t delta = static_cast<int64_t>(active_column_) - static_cast<int64_t>(i_col[0]);
             if (delta >= DELTA_SENTINEL ) {
-                m_.I_.push(0, active_column_, static_cast<uint32_t>(delta));          
+                m_.I_.push(static_cast<uint32_t>(delta));
                 deltas[0] = DELTA_SENTINEL;
             }else {
                 deltas[0] = static_cast<T>(delta);
@@ -177,7 +177,7 @@ void LDZipCompressor::write_i() {
             for (size_t idx = 1; idx < i_col.size(); ++idx) {
                 delta = static_cast<int64_t>(i_col[idx]) - static_cast<int64_t>(i_col[idx - 1]);
                 if (delta >= DELTA_SENTINEL) {
-                    m_.I_.push(idx, active_column_, static_cast<uint32_t>(delta));                
+                    m_.I_.push(static_cast<uint32_t>(delta));
                     deltas[idx] = DELTA_SENTINEL;
                 }else {
                     deltas[idx] = static_cast<T>(delta);
@@ -189,6 +189,7 @@ void LDZipCompressor::write_i() {
 
         }
     }
+    m_.I_.flush_column();
     i_col.clear();
     i_col.shrink_to_fit();
 }

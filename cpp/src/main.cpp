@@ -51,14 +51,14 @@ int main(int argc, char** argv) {
 
     // Subcommand: filter
     std::string input_prefix;
-    filter->add_option("-i,--input_prefix",     input_prefix,   "Input .ldzip prefix (expects .x.bin, .i.bin, .io.bin, .p.bin, .meta.json)")->required();
+    filter->add_option("-i,--input_prefix",     input_prefix,   "Input .ldzip prefix (expects .x.bin, .i.bin, .io.bin, .io.index, .p.bin, .meta.json)")->required();
     filter->add_option("-o,--output_prefix",    output_prefix,  "Output prefix for filtered matrix")->required();
     auto range_opt = filter->add_option("-r,--range", range_str, "Range of indices (0-based START-END)");
     auto keep_opt  = filter->add_option("-k,--keep",  keep_file, "File with list of indices (0-based)");
     range_opt->excludes(keep_opt);
 
     // Subcommand: decompress
-    decompress->add_option("-i,--input_prefix",     input_prefix,   "Input .ldzip prefix (expects .x.bin, .i.bin, .io.bin, .p.bin, .meta.json)")->required();
+    decompress->add_option("-i,--input_prefix",     input_prefix,   "Input .ldzip prefix (expects .x.bin, .i.bin, .io.bin, .io.index, .p.bin, .meta.json)")->required();
     decompress->add_option("-t,--type",             type,           "Output Type (tabular or binary)")->default_val(type);
     decompress->add_option("-o,--output_prefix",    output_prefix,  "Output path for decompressed matrix")->required();
 
