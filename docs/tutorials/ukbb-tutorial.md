@@ -97,7 +97,7 @@ outdir: 'output'
 prefix: 'european_ukbb'
 chroms: '20'
 npz_ld_type: 'UNPHASED_R'
-concat_pairwise: true
+concat_pairwise: true  # IMPORTANT: Required for this dataset since there are regions that overlap with 3 consecutive chunks
 min: 0.1
 bits: 8
 ```
