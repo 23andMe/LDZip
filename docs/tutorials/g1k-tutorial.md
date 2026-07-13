@@ -139,11 +139,7 @@ To run on all chromosomes, update the YAML:
 
 ```yaml
 chroms: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22'
-ld_window_kb: 1000
-ld_window_r2: 0.01
 ld_threads: 8
-chunk_size_kb: 20000
-overlap_size_kb: 1000
 ```
 
 For whole-genome processing, you might need an HPC cluster. For example, if using SLURM:

@@ -4,7 +4,7 @@
 
 UKBB-LD provides summary linkage disequilibrium (LD) matrices computed from UK Biobank based on N=337K British-ancestry individuals. The LD matrices were computed by the [Alkes Price group at Harvard](https://labs.icahn.mssm.edu/minervalab/resources/data-ark/ukbb_ld/) and are publicly available in AWS S3. The LD information is stored as 2,763 3Mb-long regions spanning the entire genome in NPZ format.
 
-If you want to use the LDZip-compressed LD matrix generated from this tutorial for SuSiE fine-mapping, see the [UKBB SuSiE analysis tutorial](ukbb-susie-analysis.md).
+If you want to use the LDZip-compressed LD matrix generated from this tutorial for SuSiE fine-mapping, see the [UKBB SuSiE analysis tutorial](ukbb-susie-analysis.md). See also the [1000 Genomes tutorial](g1k-tutorial.md) for generating LD matrices from raw VCF files.
 
 The workflow consists of two main steps:
 
@@ -13,7 +13,11 @@ The workflow consists of two main steps:
 
 A quick run option is provided to test a single chromosome chunk and ensure the workflow works correctly before scaling up to the full genome.
 
-**See also:** [1000 Genomes tutorial](g1k-tutorial.md) for generating LD matrices from raw VCF files.
+**Note:** The pipeline automatically handles several data-specific processing steps that are specific to the Alkes Price lab UKBB-LD data format. If you use this on other data, use it with care and verify the output:
+- **Boundary variant removal**: The first variant in each 3Mb region (at position ending in 00001) is automatically removed to prevent duplication when concatenating overlapping regions.
+- **Multi-allelic variant handling**: RSIDs that appear multiple times (different alleles at same position) are made unique by appending `:REF:ALT` to the variant ID.
+- **Exact duplicate removal**: Variants with identical `CHR:POS:REF:ALT` are deduplicated to ensure each variant appears only once in the final matrix.
+- **Diagonal correction**: Matrix diagonal values are set to 1.0 (some NPZ files have 0.5 on the diagonal, which is corrected during processing).
 
 ## Prerequisites
 
