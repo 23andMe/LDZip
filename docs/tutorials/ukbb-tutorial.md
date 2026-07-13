@@ -1,8 +1,25 @@
 # Generating Whole-Genome LDZip Matrix from UK Biobank LD Matrices
 
-This tutorial walks through generating whole-genome linkage disequilibrium (LD) matrices from pre-computed UK Biobank LD matrices (UKBB-LD) using the Nextflow pipeline provided in this repository.
+## Overview
+
+UKBB-LD provides summary linkage disequilibrium (LD) matrices computed from UK Biobank based on N=337K British-ancestry individuals. The LD matrices were computed by the [Alkes Price group at Harvard](https://labs.icahn.mssm.edu/minervalab/resources/data-ark/ukbb_ld/) and are publicly available in AWS S3. The LD information is stored as 2,763 3Mb-long regions spanning the entire genome in NPZ format.
+
+If you want to use the LDZip-compressed LD matrix generated from this tutorial for SuSiE fine-mapping, see the [UKBB SuSiE analysis tutorial](ukbb-susie-analysis.md).
+
+The workflow consists of two main steps:
+
+1. Download pre-computed NPZ LD matrices from AWS S3
+2. Run a Nextflow pipeline to compress and concatenate into a whole genome LDZip matrix
+
+A quick run option is provided to test a single chromosome chunk and ensure the workflow works correctly before scaling up to the full genome.
 
 **See also:** [1000 Genomes tutorial](g1k-tutorial.md) for generating LD matrices from raw VCF files.
+
+## Prerequisites
+
+- [`nextflow`](https://www.nextflow.io/docs/latest/install.html)
+- AWS CLI (for downloading data)
+- HPC cluster (recommended for whole-genome processing)
 
 ---
 
@@ -20,7 +37,7 @@ cd cpp
 make
 cd ..
 
-# Install R package (installs dependencies, builds, and installs)
+# Install R package
 cd R
 make install
 cd ..
@@ -33,195 +50,106 @@ After setup, the `ldzip` binary will be at `LDZip/cpp/bin/ldzip` and the R packa
 
 ---
 
-## Quick Start: 10-Minute Test Run
-
-Before downloading all 2,763 files, test with the first 4 chromosome 1 files:
-
-```bash
-mkdir -p data/ukbb
-
-# Download first 4 files for quick test (chr1 chunks: 0-12Mb)
-S3_BUCKET="s3://broad-alkesgroup-ukbb-ld/UKBB_LD"
-chunks=(chr1_1_3000001 chr1_3000001_6000001 chr1_6000001_9000001 chr1_9000001_12000001)
-
-for chunk in "${chunks[@]}"; do
-  aws s3 cp --no-sign-request "${S3_BUCKET}/${chunk}.npz" data/ukbb/ &
-  aws s3 cp --no-sign-request "${S3_BUCKET}/${chunk}.gz" data/ukbb/ &
-done
-
-wait
-
-# Create test config (ukbb_test.yaml)
-cat > ukbb_test.yaml << 'EOF'
-npz_template: '${launchDir}/data/ukbb/chr{CHR}_{CHUNK}.npz'
-outdir: 'output_test'
-prefix: 'european_ukbb_test'
-chroms: '1'
-npz_ld_type: 'UNPHASED_R'
-concat_pairwise: true
-min: 0.1
-bits: 8
-EOF
-
-# Run test pipeline
-nextflow run LDZip/pipelines/wholeGenomeLD/main.nf -params-file ukbb_test.yaml -resume
-```
-
-This completes in ~10 minutes and produces a compressed LD matrix for the first 12Mb of chr1 in `output_test/whole_genome/`.
-
----
-
-## Full Pipeline Overview
-
-UKBB-LD provides summary linkage disequilibrium (LD) matrices computed from UK Biobank based on N=337K British-ancestry individuals. The LD matrices were computed by the [Alkes Price group at Harvard](https://labs.icahn.mssm.edu/minervalab/resources/data-ark/ukbb_ld/) and are publicly available in AWS S3. The LD information is stored as 2,763 3Mb-long regions spanning the entire genome in NPZ format.
-
-The workflow consists of two main steps:
-
-1. Download pre-computed NPZ LD matrices from AWS S3
-2. Run a Nextflow pipeline to compress and concatenate into a whole genome LDZip matrix
-
----
-
-## Prerequisites
-
-- [`nextflow`](https://www.nextflow.io/docs/latest/install.html)
-- [`ldzip`](../../README.md#installation) (C++ binary from this repository)
-- AWS CLI (for downloading data)
-- Sufficient compute (multi-core recommended)
-- Adequate storage for final/intermediate files (~15GB for final output)
-
----
-
 ## Step 1: Download UKBB-LD NPZ Files
 
+### Quick run
+
+Download single chunk for testing, then proceed to Step 2.
+
 ```bash
 mkdir -p data/ukbb
 
-# Download all NPZ files from AWS S3 (no AWS credentials required)
+# Download one chr20 file (chr20: 0-3Mb)
+S3_BUCKET="s3://broad-alkesgroup-ukbb-ld/UKBB_LD"
+chunk="chr20_1_3000001"
+
+aws s3 cp --no-sign-request "${S3_BUCKET}/${chunk}.npz" data/ukbb/
+aws s3 cp --no-sign-request "${S3_BUCKET}/${chunk}.gz" data/ukbb/
+```
+
+### Full run
+
+Download all chunks for all chromosomes.
+
+```bash
+mkdir -p data/ukbb
+
+# Download all 2,763 NPZ files from AWS S3 (no AWS credentials required)
 aws s3 sync --no-sign-request \
   s3://broad-alkesgroup-ukbb-ld/UKBB_LD/ \
   data/ukbb/
 ```
 
-This will download 2,763 NPZ files (one per 3Mb region) with accompanying `.gz` variant metadata files.
-
 ---
 
 ## Step 2: Run Nextflow LD Pipeline
 
-- Clone the LDZip repository:
+### Quick run
 
-  ```bash
-  git clone git@github.com:23andMe/LDZip.git
-  ```
+**File: ukbb.yaml**
+```yaml
+npz_template: '${launchDir}/data/ukbb/chr{CHR}_{CHUNK}.npz'
+outdir: 'output'
+prefix: 'european_ukbb'
+chroms: '20'
+npz_ld_type: 'UNPHASED_R'
+concat_pairwise: true
+min: 0.1
+bits: 8
+```
 
-- Create YAML file of input parameters
+If `ldzip` is NOT available in your `$PATH`, export its path:
 
-  **File: ukbb.yaml**
-  ```yaml
-  npz_template: '${launchDir}/data/ukbb/chr{CHR}_{CHUNK}.npz'
-  outdir: 'output'
-  prefix: 'european_ukbb'
-  chroms: '20,21,22'
-  npz_ld_type: 'UNPHASED_R'
-  concat_pairwise: true
-  min: 0.1
-  bits: 8
-  ```
+```bash
+export LDZIP=$(pwd)/LDZip/cpp/bin/ldzip
+```
 
-  **Note:** The `npz_template` should point to where you downloaded the files in Step 1. Adjust the path as needed.
+Run as follows:
 
-- If `ldzip` is NOT available in your `$PATH`, export its path before running the pipeline:
+```bash
+nextflow run LDZip/pipelines/wholeGenomeLD/main.nf -params-file ukbb.yaml -resume
+```
 
-  ```bash
-  export LDZIP=$(pwd)/LDZip/cpp/bin/ldzip
-  ```
+This runs locally and requires at least 16GB RAM.
 
-- Run the pipeline:
+Go to Step 3 to test whether it worked correctly.
 
-  ```bash
-  nextflow run LDZip/pipelines/wholeGenomeLD/main.nf -params-file ukbb.yaml -resume
-  ```
+### Full run
 
-  **Tip:** For detailed parameter descriptions and validation rules, run:
-  ```bash
-  nextflow run LDZip/pipelines/wholeGenomeLD/main.nf --help
-  ```
+To run on all chromosomes, update the YAML:
+
+```yaml
+chroms: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22'
+```
+
+For whole-genome processing, you might need an HPC cluster. For example, if using SLURM:
+
+**File: slurm.config**
+```groovy
+params.partition        = "example_partition"
+
+process.executor        = "slurm"
+process.cpus            = 1
+process.errorStrategy   = 'retry'
+process.maxRetries      = 5
+process.queue           = params.partition
+
+executor.perCpuMemAllocation = true
+```
+
+Run as follows:
+
+```bash
+nextflow run LDZip/pipelines/wholeGenomeLD/main.nf -params-file ukbb.yaml -C slurm.config -resume
+```
+
+For other HPC environments, refer to the Nextflow executor [guidelines](https://www.nextflow.io/docs/latest/executor.html).
 
 ---
 
-- **Note**
+## Step 3: Verify Output
 
-  The above configuration runs locally for chromosomes 20-22 only (`chroms`) so the pipeline completes quickly (typically ~10 minutes). This serves as a sanity check to ensure the inputs are correct and the workflow completes end-to-end with reasonable outputs.
-
-  To run LDZip on all chromosomes, update to:
-
-  ```yaml
-  chroms: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22'
-  ```
-
-  **Important:** Set `concat_pairwise: true` for this dataset because the 3Mb regions have overlapping boundaries that cannot be handled by direct concatenation.
-
-- **Running on HPC**
-
-  For whole-genome processing, you may want to use an HPC cluster. For example, if using SLURM:
-
-  **File: slurm.config**
-  ```groovy
-  params.partition        = "example_partition"
-
-  process.executor        = "slurm"
-  process.cpus            = 1
-  process.errorStrategy   = 'retry'
-  process.maxRetries      = 5
-  process.queue           = params.partition
-
-  executor.perCpuMemAllocation = true
-  ```
-
-  ```bash
-  nextflow run LDZip/pipelines/wholeGenomeLD/main.nf -params-file ukbb.yaml -C slurm.config -resume
-  ```
-
-  For other HPC environments, refer to the Nextflow executor [guidelines](https://www.nextflow.io/docs/latest/executor.html).
-
----
-
-## Expected Output
-
-After successful completion, the final output will contain:
-
-```
-output/whole_genome/
-├── european_ukbb.i.bin              # Row indices (compressed)
-├── european_ukbb.i.bin.index        # Index for row indices
-├── european_ukbb.meta.json          # Metadata
-├── european_ukbb.p.bin              # Variant positions
-├── european_ukbb.sqlite             # Variant index database
-├── european_ukbb.vars.txt           # Variant information
-├── european_ukbb.x.UNPHASED_R.bin   # LD values (compressed)
-└── european_ukbb.x.UNPHASED_R.bin.index  # Index for LD values
-```
-
-**File sizes for whole genome (all chromosomes):**
-```
-5.6G    european_ukbb.i.bin
-912K    european_ukbb.i.bin.index
-4.0K    european_ukbb.meta.json
-148M    european_ukbb.p.bin
-1.2G    european_ukbb.sqlite
-510M    european_ukbb.vars.txt
-5.6G    european_ukbb.x.UNPHASED_R.bin
-908K    european_ukbb.x.UNPHASED_R.bin.index
----
-13G     total
-```
-
----
-
-## Using the LDZip Matrix in R
-
-Once the pipeline completes, you can query the compressed LD matrix using the R package:
+After successful completion, verify the LD matrix by querying two variants:
 
 ```r
 library(LDZipMatrix)
@@ -230,11 +158,11 @@ library(LDZipMatrix)
 ld <- LDZipMatrix("output/whole_genome/european_ukbb")
 
 # Query LD between two variants
-fetchLD(ld, "rs133036", "rs6001980")
-# [1] 0.3700787
+fetchLD(ld, "rs995008", "rs4813467")
+# [1] 0.5234156
 
 # Benchmark query time
-system.time(fetchLD(ld, "rs133036", "rs6001980"))
+system.time(fetchLD(ld, "rs995008", "rs4813467"))
 #    user  system elapsed
 #   0.003   0.000   0.010
 ```
