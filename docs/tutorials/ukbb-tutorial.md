@@ -18,6 +18,7 @@ A quick run option is provided to test a single chromosome chunk and ensure the 
 - **Multi-allelic variant handling**: RSIDs that appear multiple times (different alleles at same position) are made unique by appending `:REF:ALT` to the variant ID.
 - **Exact duplicate removal**: Variants with identical `CHR:POS:REF:ALT` are deduplicated to ensure each variant appears only once in the final matrix.
 - **Diagonal correction**: Matrix diagonal values are set to 1.0 (some NPZ files have 0.5 on the diagonal, which is corrected during processing).
+- **Matrix asymmetry**: Overlapping regions in the input NPZ files can have slightly different raw LD values for the same variant pair. For example, depending on the raw input file, the pair (`rs2275806`, `rs76602649`) might have a value of `0.4848628044` (in `chr10_6000001_9000001.npz` and `chr10_7000001_10000001.npz`) or `0.4848628640` (in `chr10_8000001_11000001.npz`). When these values fall on opposite sides of a quantization boundary, the final quantized values become different, leading to small asymmetries where `LD[i,j] ≠ LD[j,i]`. This can trigger `XtX is not symmetric` warnings in downstream tools like SuSiE but should not affect the final results.
 
 ## Prerequisites
 
