@@ -1,0 +1,7 @@
+tests/.nextflow/
+tests/.nextflow.log*
+tests/work/
+tests/*.log
+tests/test_output/
+tests/nf_log.txt
+

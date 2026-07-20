@@ -78,8 +78,14 @@ The Nextflow pipeline automates creation of a **whole-genome** compressed LD arc
 - **I have a PLINK LD matrix and want to create a `.ldzip` file. What should I do?**  
   Build the **C++ `ldzip` binary** and run the `compress` command. Go to: [C++ Binary](#c-binary)
 
-- **I have PLINK pgen files and want to build whole-genome `.ldzip` outputs in a pipeline. What should I do?**  
-  Use the **Nextflow** workflow. Go to: [Nextflow](#nextflow)
+- **I have PLINK pgen/VCF files and want to build whole-genome `.ldzip` outputs in a pipeline. What should I do?**  
+  Use the **Nextflow** workflow. Go to: [Nextflow](#nextflow) or see the [1000 Genomes tutorial](docs/tutorials/g1k-tutorial.md) for an example using VCF files.
+
+- **I have NPZ files (e.g., UK Biobank LD matrices) and want to build whole-genome `.ldzip` outputs. What should I do?**  
+  Use the **Nextflow** workflow with NPZ input mode. See the [UK Biobank tutorial](docs/tutorials/ukbb-tutorial.md) for an example.
+
+- **How do I run SuSiE fine-mapping using LDZip-compressed LD matrices?**  
+  See the [UKBB SuSiE analysis tutorial](docs/tutorials/ukbb-susie-analysis.md) for a complete example using UK Biobank GWAS data and LDZip-compressed LD matrices.
 
 - **I already have a `.ldzip` file and want to convert it back to my own format. What should I do?**  
   Build the **C++ `ldzip` binary** and run the `decompress` command. Go to: [C++ Binary](#c-binary)
