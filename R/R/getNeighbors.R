@@ -47,6 +47,11 @@
 #'
 #' @export
 getNeighbors <- function(ld, variant, type="UNPHASED_R2", abs_threshold=0.8, genomic_length=1e5) {
+
+  if (!inherits(ld, "LDZipMatrix")) {
+    stop("`ld` must be an LDZipMatrix object")
+  }
+
   variant_db_file <- paste(LDZipMatrix_get_prefix_rcpp(ld), "sqlite", sep=".")
   if (!file.exists(variant_db_file)) {
     stop(sprintf("Database file not found: %s", variant_db_file))

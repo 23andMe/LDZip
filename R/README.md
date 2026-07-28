@@ -55,6 +55,21 @@ fetchLD(ld, "22:16050000-16051000", "22:16050000-16051000", type = "PHASED_R")
 ```
 ---
 
+### - `fetchVariants(variants)`
+Retrieve variant metadata (chromosome, position, ID, reference and alternate alleles) from the indexed database.
+- Supports queries by variant indices, variant IDs, or genomic regions.
+- Returns a data.frame with columns: idx, CHROM, POS, ID, REF, ALT.
+- See `?fetchVariants` for detailed usage and examples.
+```
+library(LDZipMatrix)
+ld = LDZipMatrix(file.path(system.file("extdata", package = "LDZipMatrix"), "g1k.chr22.ldzip"))
+buildIndex(ld)
+fetchVariants(ld, c(1, 10, 50))
+fetchVariants(ld, c("rs587755077", "rs587631919"))
+fetchVariants(ld, "22:16050000-16051000")
+```
+---
+
 ### - `getNeighbors(variant, type, abs_threshold)`
 Find neighbors of a given variant within the LD matrix above a specified threshold for a given statistic type.  
 - Returns variants with high LD greater than the cutoff and within a boundary
