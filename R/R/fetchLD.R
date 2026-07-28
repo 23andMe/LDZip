@@ -155,7 +155,11 @@
 #'
 #' @export
 fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplify=TRUE) {
-  
+
+	if (!inherits(ld, "LDZipMatrix")) {
+		stop("`ld` must be an LDZipMatrix object")
+	}
+
 	.check_fetchLD_inputs(row, col, pairwise)
 	rowNames = row
 	colNames = col
