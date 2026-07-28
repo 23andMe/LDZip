@@ -2,23 +2,21 @@
 
 ## Overview
 
-UKBB-LD provides summary linkage disequilibrium (LD) matrices computed from UK Biobank based on N=337K British-ancestry individuals. The LD matrices were computed by the [Alkes Price group at Harvard](https://labs.icahn.mssm.edu/minervalab/resources/data-ark/ukbb_ld/) and are publicly available in AWS S3. The LD information is stored as 2,763 3Mb-long regions spanning the entire genome in NPZ format.
+UKBB-LD provides summary linkage disequilibrium (LD) matrices computed from UK Biobank based on N=337K British-ancestry individuals. The LD matrices were computed by the [Alkes Price group at Harvard](https://labs.icahn.mssm.edu/minervalab/resources/data-ark/ukbb_ld/) and are publicly available in AWS S3 (~2.9 TB). The LD information is stored as 2,763 3Mb-long regions spanning the entire genome in NPZ format.
 
-If you want to use the LDZip-compressed LD matrix generated from this tutorial for SuSiE fine-mapping, see the [UKBB SuSiE analysis tutorial](ukbb-susie-analysis.md). See also the [1000 Genomes tutorial](g1k-tutorial.md) for generating LD matrices from raw VCF files.
+We recommend two compression levels for creating LDZip matrices from the original data:
+
+- **Low-resolution (`ldzip_lite`)**: A `~5 GB` whole-genome matrix suitable for LocusZoom plots, LD pruning, finding tag variants etc. See the [R package documentation](../../R/man/LDZipMatrix.pdf) for typical API examples to query the data.
+- **High-resolution (`ldzip_std`)**: A `~300Gb` whole genome matrix designed for demanding applications such as SuSiE fine-mapping. See the [UKBB SuSiE analysis tutorial](ukbb-susie-analysis.md) for a complete example.
+
+For parameter details on each compression level, see the [Full run (whole genome)](#full-run-whole-genome) section in Step 2 below. See also the [1000 Genomes tutorial](g1k-tutorial.md) for generating LD matrices from raw VCF files.
 
 The workflow consists of two main steps:
 
 1. Download pre-computed NPZ LD matrices from AWS S3
 2. Run a Nextflow pipeline to compress and concatenate into a whole genome LDZip matrix
 
-A quick run option is provided to test a single chromosome chunk and ensure the workflow works correctly before scaling up to the full genome.
-
-**Note:** The pipeline automatically handles several data-specific processing steps that are specific to the Alkes Price lab UKBB-LD data format. If you use this on other data, use it with care and verify the output:
-- **Boundary variant removal**: The first variant in each 3Mb region (at position ending in 00001) is automatically removed to prevent duplication when concatenating overlapping regions.
-- **Multi-allelic variant handling**: RSIDs that appear multiple times (different alleles at same position) are made unique by appending `:REF:ALT` to the variant ID.
-- **Exact duplicate removal**: Variants with identical `CHR:POS:REF:ALT` are deduplicated to ensure each variant appears only once in the final matrix.
-- **Diagonal correction**: Matrix diagonal values are set to 1.0 (some NPZ files have 0.5 on the diagonal, which is corrected during processing).
-- **Matrix asymmetry**: Overlapping regions in the input NPZ files can have slightly different raw LD values for the same variant pair. For example, depending on the raw input file, the pair (`rs2275806`, `rs76602649`) might have a value of `0.4848628044` (in `chr10_6000001_9000001.npz` and `chr10_7000001_10000001.npz`) or `0.4848628640` (in `chr10_8000001_11000001.npz`). When these values fall on opposite sides of a quantization boundary, the final quantized values become different, leading to small asymmetries where `LD[i,j] ≠ LD[j,i]`. This can trigger `XtX is not symmetric` warnings in downstream tools like SuSiE but should not affect the final results.
+A quick run option is provided to test a single chromosome chunk and ensure the workflow works correctly before scaling up to the full genome. See the [Notes](#notes) section below for important details about UKBB-LD data handling.
 
 ## Prerequisites
 
@@ -89,7 +87,7 @@ aws s3 sync --no-sign-request \
 
 ## Step 2: Run Nextflow LD Pipeline
 
-### Quick run
+### Quick run (single chromosome)
 
 **File: ukbb.yaml**
 ```yaml
@@ -119,13 +117,21 @@ This runs locally and requires at least 16GB RAM.
 
 Go to Step 3 to test whether it worked correctly.
 
-### Full run
+### Full run (whole genome)
 
 To run on all chromosomes, update the YAML:
 
 ```yaml
 chroms: '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22'
 ```
+
+**Recommended parameter settings:**
+
+- **`ldzip_lite`**: Use `min: 0.31622` and `bits: 8` (~5 GB whole genome)
+- **`ldzip_std`**: Use `min: 0.01` and `bits: 16` (~300 GB whole genome)
+
+Note: Since the UKBB-LD data stores `UNPHASED_R`, these thresholds translate to r² ≥ 0.1 and r² ≥ 0.0001 respectively. 
+
 
 For whole-genome processing, you might need an HPC cluster. For example, if using SLURM:
 
@@ -171,6 +177,18 @@ system.time(fetchLD(ld, "rs995008", "rs4813467"))
 #    user  system elapsed
 #   0.003   0.000   0.010
 ```
+
+---
+
+## Notes
+
+The pipeline automatically handles several data-specific processing steps for the Alkes Price lab UKBB-LD data format. If you use this on other data, use it with care and verify the output:
+
+- **Boundary variant removal**: The first variant in each 3Mb region (at position ending in 00001) is automatically removed to prevent duplication when concatenating overlapping regions.
+- **Multi-allelic variant handling**: RSIDs that appear multiple times (different alleles at same position) are made unique by appending `:REF:ALT` to the variant ID.
+- **Exact duplicate removal**: Variants with identical `CHR:POS:REF:ALT` are deduplicated to ensure each variant appears only once in the final matrix.
+- **Diagonal correction**: Matrix diagonal values are set to 1.0 (some NPZ files have 0.5 on the diagonal, which is corrected during processing).
+- **Matrix asymmetry**: Overlapping regions in the input NPZ files can have slightly different raw LD values for the same variant pair. For example, depending on the raw input file, the pair (`rs2275806`, `rs76602649`) might have a value of `0.4848628044` (in `chr10_6000001_9000001.npz` and `chr10_7000001_10000001.npz`) or `0.4848628640` (in `chr10_8000001_11000001.npz`). When these values fall on opposite sides of a quantization boundary, the final quantized values become different, leading to small asymmetries where `LD[i,j] ≠ LD[j,i]`. This can trigger `XtX is not symmetric` warnings in downstream tools like SuSiE but should not affect the final results.
 
 ---
 

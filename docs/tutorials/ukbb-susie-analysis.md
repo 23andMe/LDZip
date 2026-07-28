@@ -4,7 +4,7 @@ This guide demonstrates how to perform fine-mapping on UK Biobank GWAS data (fro
 
 **Prerequisites**:
 - R packages (`data.table`, `susieR`, `LDZipMatrix`)
-- Whole-genome LD file for UKBB at `ukbb_ld/european_std` ([see UKBB LD tutorial](ukbb-tutorial.md))
+- Whole-genome LD file for UKBB at `ukbb_ld/european_std` ([see UKBB LD tutorial](ukbb-tutorial.md)). Note: Make sure you ran the UKBB pipeline with high-resolution `ldzip_std` settings (`min: 0.01`, `bits: 16`) for SuSiE fine-mapping. The final total file size should be around 300 GB.
 - Command-line tools (`bgzip`, `tabix`)
 
 ## Workflow Overview
@@ -138,11 +138,21 @@ if (length(cs$cs) > 0) {
 # [1] "Credible Set 3: 9 variants, top variant rs263424 (PIP=0.406, p=2.49e-05)"
 ```
 
+## Comparison with Original Results
+
+To validate the LDZip compression, we compared SuSiE fine-mapping results using the LDZip-compressed LD matrix versus the original Alkes Price NPZ files. The posterior inclusion probabilities (PIPs) show extremely high concordance between the two approaches:
+
+<p align="center">
+  <img src="pip_comparison.png" width="500">
+</p>
+
+The near-perfect correlation (`r > 0.9999`) demonstrates that LDZip compression preserves the LD structure with sufficient precision for fine-mapping analyses. The maximum PIP difference between methods was `0.00637`, with a mean difference of only `0.00002`. **Additionally, the matrix loads in a few seconds instead of a minute from the NPZ files (which involves reticulate and converting sparse NPZ to dense), and takes up 300 GB compared to 3 TB.**
+
 ## Troubleshooting
 
 **If you get 'XtX is not symmetric' warning:**
 
-This can occur due to small asymmetries in the LD matrix from quantization of overlapping regions. See the [UKBB LD tutorial](ukbb-tutorial.md) for details on matrix asymmetry. This warning should not affect the final results.
+This can occur due to small asymmetries in the LD matrix from quantization of overlapping regions. See the [Notes section in the UKBB LD tutorial](ukbb-tutorial.md#notes) for details on matrix asymmetry. This warning should not affect the final results.
 
 ## References
 
