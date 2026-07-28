@@ -13,7 +13,7 @@ doc:
 	Rscript -e "roxygen2::roxygenise()"
 	R CMD Rd2pdf . -o man/LDZipMatrix.pdf --force
 
-test: test-data test-index-query test-rsid-query test-region-query test-get-neighbor test-pairwise test-variant-parsing test-doc test-order test-fail test-na test-sex-chromosome
+test: test-data test-index-query test-rsid-query test-region-query test-get-neighbor test-pairwise test-variant-parsing test-fetchVariants test-doc test-order test-fail test-na test-sex-chromosome
 
 test-index-query:
 	Rscript -e "tinytest::run_test_file('inst/tinytest/test_index_query.R')"
@@ -41,6 +41,9 @@ test-pairwise:
 
 test-variant-parsing:
 	Rscript -e "tinytest::run_test_file('inst/tinytest/test_variant_parsing.R')"
+
+test-fetchVariants:
+	Rscript -e "tinytest::run_test_file('inst/tinytest/test_fetchVariants.R')"
 
 test-na:
 	Rscript -e "tinytest::run_test_file('inst/tinytest/test_na.R')"
