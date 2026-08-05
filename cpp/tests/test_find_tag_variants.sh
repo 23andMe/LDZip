@@ -30,7 +30,7 @@ echo "➤ Compressing with ldzip..."
   --min_col UNPHASED_R > /dev/null
 
 echo "➤ Creating test variant list (random 10 variants)..."
-shuf -i 0-999 -n 10 | sort -n > $OUT_DIR/variants.txt
+seq 0 999 | sort -R | head -n 10 | sort -n > $OUT_DIR/variants.txt
 
 echo "➤ Running find-tag-variants..."
 ../bin/ldzip find-tag-variants \
@@ -101,8 +101,11 @@ else
 fi
 
 # Verify at least some tags found
-if [ $TAG_COUNT -gt 0 ]; then
-    echo "✅ All checks passed!"
-    echo "   - Tag count: $TAG_COUNT"
-    echo "   - C++ vs R: identical"
+if [ $TAG_COUNT -eq 0 ]; then
+    echo "❌ No tag variants found"
+    exit 1
 fi
+
+echo "✅ All checks passed!"
+echo "   - Tag count: $TAG_COUNT"
+echo "   - C++ vs R: identical"
