@@ -202,6 +202,13 @@ fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplif
 
 	variant_db_file <- paste(LDZipMatrix_get_prefix_rcpp(ld), "sqlite", sep=".")
 
+	# Check if variant database exists when using character/region inputs
+	if (is.character(row) || is.character(col)) {
+		if (!file.exists(variant_db_file)) {
+			stop(sprintf("Variant database not found: %s\nPlease run buildIndex(ld) to create the index.", variant_db_file))
+		}
+	}
+
 	row_resolved <- .resolve_variant_input(row, variant_db_file)
 	col_resolved <- .resolve_variant_input(col, variant_db_file)
 
