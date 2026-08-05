@@ -25,7 +25,7 @@
 #' idx <- buildIndex(ld)
 #'
 #' # Fetch LD values by variant IDs
-#' fetchLD(ld, "rs587755077", c("rs587631919", "rs587661542"), type = "PHASED_R")
+#' fetchLD(ld, "rs587755077", c("rs587631919", "rs587661542"), types = "PHASED_R")
 #' }
 #'
 #' @export

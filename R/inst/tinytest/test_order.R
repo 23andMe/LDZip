@@ -35,7 +35,7 @@ for (simplify in c(TRUE, FALSE)) {
                    "use_rsid =", use_rsid,
                    "multi =", multi)
 
-      out <- fetchLD(ld, one, many, type = types, simplify = simplify)
+      out <- fetchLD(ld, one, many, types = types, simplify = simplify)
 
       # extract returned names
       if (simplify && !multi) {
