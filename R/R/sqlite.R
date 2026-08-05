@@ -118,17 +118,18 @@ get_cpra_from_rsids <- function(db_file, rsids) {
 
 get_cpra_from_indices <- function(db_file, indices) {
   if (!file.exists(db_file)) stop(sprintf("Database file not found: %s", db_file))
-  
+
   con <- DBI::dbConnect(RSQLite::SQLite(), db_file)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
   sql <- sprintf(
     "SELECT rowid AS idx, CHROM, POS, RSNUM, RSLEV
-     FROM variants 
+     FROM variants
      WHERE rowid IN (%s)",
     paste0(indices, collapse = ",")
   )
   res <- DBI::dbGetQuery(con, sql)
+  if (nrow(res) == 0) stop('No matching variants found for indices')
 
   # rebuild identifiers
   res$ID <- join_variant_identifier(res$RSNUM, res$RSLEV)

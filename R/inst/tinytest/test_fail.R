@@ -60,6 +60,18 @@ expect_error(
   info = "row index non-integer"
 )
 
+expect_error(
+  fetchLD(ld, 99999999, 1, types = "PHASED_R"),
+  "out of range|out of bounds",
+  info = "row index out of range"
+)
+
+expect_error(
+  fetchLD(ld, 1, 99999999, types = "PHASED_R"),
+  "out of range|out of bounds",
+  info = "col index out of range"
+)
+
 ## -----------------------------
 ## mixed row / col types
 ## -----------------------------

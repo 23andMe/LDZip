@@ -27,7 +27,7 @@
   list(idx = idx, names = names)
 }
 
-.check_fetchLD_inputs <- function(row, col, pairwise) {
+.check_fetchLD_inputs <- function(ld, row, col, pairwise) {
 
   if (!length(row) || !length(col))
     stop("`row` and `col` must be non-empty")
@@ -55,6 +55,17 @@
     stop("Numeric `row` indices must be positive integers")
   if (is.numeric(col) && any(col < 1 | col %% 1 != 0))
     stop("Numeric `col` indices must be positive integers")
+
+  if (is.numeric(row)) {
+    max_row <- LDZipMatrix_nrows_rcpp(ld)
+    if (any(row > max_row))
+      stop(sprintf("Numeric `row` indices out of range (max: %d)", max_row))
+  }
+  if (is.numeric(col)) {
+    max_col <- LDZipMatrix_ncols_rcpp(ld)
+    if (any(col > max_col))
+      stop(sprintf("Numeric `col` indices out of range (max: %d)", max_col))
+  }
 
   invisible(TRUE)
 }
@@ -185,7 +196,7 @@
 #' @export
 fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplify=TRUE) {
   
-	.check_fetchLD_inputs(row, col, pairwise)
+	.check_fetchLD_inputs(ld, row, col, pairwise)
 	rowNames = row
 	colNames = col
 
