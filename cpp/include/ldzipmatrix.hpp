@@ -161,7 +161,7 @@ namespace ldzip {
             size_t nrows_{0};
             size_t ncols_{0};
             uint64_t nnz_{0};
-            size_t chunk_size_{0};  // v3.0+: columns per chunk (0 = uncompressed)
+            size_t chunk_size_{0};  // v3.0+: columns per chunk
             Bits bits_{Bits::B8};
             MatrixFormat format_{MatrixFormat::UPPER};
             mutable EnumArray<bool, Stat> has_stat_{};

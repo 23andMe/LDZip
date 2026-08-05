@@ -37,6 +37,10 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
       format_(format),
       file_prefix_(prefix) {
 
+    if (chunk_size == 0) {
+        throw std::runtime_error("v3.0 with chunk_size=0 not supported");
+    }
+
     for (Stat s : stats) {
         has_stat_[s] = true;
         stats_available_.push_back(s);
@@ -73,7 +77,10 @@ LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix) {
     chunk_size_ = meta.chunk_size;
 
     // v3.0: Initialize chunked readers
-    if (version_ == "3.0" && chunk_size_ > 0) {
+    if (version_ == "3.0") {
+        if (chunk_size_ == 0) {
+            throw std::runtime_error("v3.0 with chunk_size=0 not supported");
+        }
         i_chunked_reader_ = std::make_unique<ChunkedReader>(iFile(), iIndexFile(), chunk_size_);
 
         for (Stat s : All_Stats()) if (has_stat_[s]) {stats_available_.push_back(s); x_chunked_readers_[s] = std::make_unique<ChunkedReader>(xFile(s), xIndexFile(s), chunk_size_);}
@@ -176,7 +183,7 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
     std::vector<uint32_t> i_buf(nnz_column);
     if (nnz_column == 0) return i_buf;
 
-    if (version_ == "3.0" && chunk_size_ > 0) {
+    if (version_ == "3.0") {
         // v3.0: Read from compressed chunks (int32_t deltas)
 
         // 1. Determine which chunk contains this column (using index, ignoring metadata chunk_size)
@@ -273,7 +280,7 @@ std::vector<float> LDZipMatrix::get_x(uint32_t column, Stat stat) const {
     std::vector<float> x_buf(nnz);
 
     // v3.0: Read from chunked compressed file
-    if (version_ == "3.0" && chunk_size_ > 0) {
+    if (version_ == "3.0") {
         size_t chunk_id = x_chunked_readers_[stat]->getChunkForColumn(column);
         const auto& chunk_data = x_chunked_readers_[stat]->readChunk(chunk_id);
 
