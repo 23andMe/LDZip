@@ -31,6 +31,10 @@
 #' @export
 buildIndex <- function(ld, variant_file) {
 
+    if (!inherits(ld, "LDZipMatrix")) {
+        stop("`ld` must be an LDZipMatrix object")
+    }
+
     if (missing(variant_file))
         variant_file <- paste(LDZipMatrix_get_prefix_rcpp(ld), "vars", "txt", sep = ".")
     if (!file.exists(variant_file)) {

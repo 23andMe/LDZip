@@ -182,3 +182,26 @@ expect_error(
   info = "Should error on region with pairwise=TRUE"
 )
 
+# --- fetchVariants tests ----------------------------------------------------
+
+# Query by numeric indices
+v1 <- fetchVariants(ld, 1:10)
+expect_inherits(v1, "data.frame", info = "fetchVariants should return data.frame")
+expect_equal(nrow(v1), 10, info = "Should return 10 rows")
+expect_true(all(c("idx", "CHROM", "POS", "ID", "REF", "ALT") %in% colnames(v1)),
+            info = "Should have all CPRA columns")
+
+# Query by variant IDs
+vars <- c("rs587725733", "rs587631919", "rs587661542")
+v2 <- fetchVariants(ld, vars)
+expect_inherits(v2, "data.frame", info = "fetchVariants with rsIDs should return data.frame")
+expect_equal(nrow(v2), 3, info = "Should return 3 rows")
+expect_equal(v2$ID, vars, info = "IDs should match input")
+
+# Query by genomic region
+v3 <- fetchVariants(ld, "22:16050000-16051000")
+expect_inherits(v3, "data.frame", info = "fetchVariants with region should return data.frame")
+expect_true(nrow(v3) > 0, info = "Region should return at least one variant")
+expect_true(all(v3$CHROM == 22), info = "All variants should be on chr 22")
+expect_true(all(v3$POS >= 16050000 & v3$POS <= 16051000), info = "All positions should be in range")
+

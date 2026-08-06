@@ -102,7 +102,7 @@ get_cpra_from_rsids <- function(db_file, rsids) {
 
   union_sql = get_query_sql(rsids)
   sql <- sprintf("
-    SELECT v.rowid AS idx, v.CHROM, v.POS, v.RSNUM, v.RSLEV
+    SELECT v.rowid AS idx, v.CHROM, v.POS, v.RSNUM, v.RSLEV, v.REF, v.ALT
     FROM variants v
     JOIN ( %s ) AS q
       ON v.RSNUM = q.RSNUM AND v.RSLEV = q.RSLEV
@@ -113,7 +113,7 @@ get_cpra_from_rsids <- function(db_file, rsids) {
 
   # rebuild identifiers
   res$ID <- join_variant_identifier(res$RSNUM, res$RSLEV)
-  res[order(res$idx), c("idx", "CHROM", "POS", "ID")]
+  res[order(res$idx), c("idx", "CHROM", "POS", "ID", "REF", "ALT")]
 }
 
 get_cpra_from_indices <- function(db_file, indices) {
@@ -123,7 +123,7 @@ get_cpra_from_indices <- function(db_file, indices) {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
   sql <- sprintf(
-    "SELECT rowid AS idx, CHROM, POS, RSNUM, RSLEV
+    "SELECT rowid AS idx, CHROM, POS, RSNUM, RSLEV, REF, ALT
      FROM variants
      WHERE rowid IN (%s)",
     paste0(indices, collapse = ",")
@@ -133,5 +133,5 @@ get_cpra_from_indices <- function(db_file, indices) {
 
   # rebuild identifiers
   res$ID <- join_variant_identifier(res$RSNUM, res$RSLEV)
-  res[order(res$idx), c("idx", "CHROM", "POS", "ID")]
+  res[order(res$idx), c("idx", "CHROM", "POS", "ID", "REF", "ALT")]
 }
