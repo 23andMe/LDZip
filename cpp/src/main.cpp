@@ -7,6 +7,7 @@
 #include "filter.hpp"
 #include "find_tag_variants.hpp"
 #include "ld_pruning.hpp"
+#include "ld_score.hpp"
 
 
 int main(int argc, char** argv) {
@@ -35,6 +36,7 @@ int main(int argc, char** argv) {
     auto decompress = app.add_subcommand("decompress", "Decompress a .ldzip binary matrix");
     auto find_tag = app.add_subcommand("find-tag-variants", "Find tag variants above LD threshold");
     auto prune = app.add_subcommand("prune", "LD-based variant pruning (greedy pairwise)");
+    auto ldScore = app.add_subcommand("ld-score", "Calculate LD scores for all variants");
     auto plink_bin = compress->add_subcommand("plinkSquare","Plink Binary Input");
     auto plink_tabular = compress->add_subcommand("plinkTabular","Plink Tabular Input");
 
@@ -87,6 +89,14 @@ int main(int argc, char** argv) {
     prune->add_option("-w,--window", window_kb, "Window size in kb")->check(CLI::PositiveNumber)->default_val(std::to_string(window_kb));
     prune->add_option("-t,--threshold", prune_threshold, "LD threshold for pruning")->check(CLI::NonNegativeNumber)->default_val(std::to_string(prune_threshold));
     prune->add_option("-s,--stat", prune_stat, "LD statistic to use")->check(CLI::IsMember(column_names, CLI::ignore_case))->default_val(prune_stat);
+
+    // Subcommand: ldScore
+    size_t ldscore_window_kb = 1000;
+    std::string ldscore_stat = "UNPHASED_R2";
+    ldScore->add_option("-i,--input_prefix", input_prefix, "Input .ldzip prefix")->required();
+    ldScore->add_option("-o,--output", output_prefix, "Output file for LD scores")->required();
+    ldScore->add_option("-w,--window", ldscore_window_kb, "Window size in kb")->check(CLI::PositiveNumber)->default_val(std::to_string(ldscore_window_kb));
+    ldScore->add_option("-s,--stat", ldscore_stat, "LD statistic to use")->check(CLI::IsMember(column_names, CLI::ignore_case))->default_val(ldscore_stat);
 
     // Subcommand: concat
     std::vector<std::string> input_chunks;
@@ -170,6 +180,10 @@ int main(int argc, char** argv) {
     } else if (prune->parsed()) {
 
         ldzip::ld_pruning(input_prefix, output_prefix, prune_threshold, window_kb, prune_stat);
+
+    } else if (ldScore->parsed()) {
+
+        ldzip::ld_score(input_prefix, output_prefix, ldscore_window_kb, ldscore_stat);
 
     } else if (concat->parsed()) {
 
