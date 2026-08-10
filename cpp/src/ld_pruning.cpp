@@ -79,7 +79,7 @@ void ld_pruning(
     std::cout << "Threshold: " << threshold << std::endl;
     std::cout << "Statistic: " << stat_str << std::endl;
 
-    // Preload data if small enough
+    // Decide preload strategy based on file size
     const size_t max_full_preload = 8ULL * 1024 * 1024 * 1024; // 8GB
     size_t total_size = matrix.get_total_file_size();
     bool use_full_preload = (total_size <= max_full_preload);
@@ -95,9 +95,17 @@ void ld_pruning(
     // Compute window size in bp once
     const uint64_t window_bp = static_cast<uint64_t>(window_kb) * 1000;
 
+    uint32_t current_segment_end = 0;
+
     // Process each variant
     for (uint32_t i = 0; i < variants.size(); ++i) {
         if (removed[i]) continue;
+
+        if (!use_full_preload && i > current_segment_end) {
+            const size_t segment_size = 4ULL * 1024 * 1024 * 1024;
+            current_segment_end = matrix.get_segment_end(i, segment_size);
+            matrix.preload_segment(i, current_segment_end);
+        }
 
         // Get neighbors within window that exceed threshold
         const auto& neighbors = matrix.get_neighbors(i, threshold, stat);
@@ -118,7 +126,7 @@ void ld_pruning(
         }
 
         // Progress reporting
-        if ((i + 1) % 100 == 0) {
+        if ((i + 1) % 10000 == 0) {
             std::cout << "Processed " << (i + 1) << " / " << variants.size()
                       << " variants, removed " << removed_count << std::endl;
         }
