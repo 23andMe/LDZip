@@ -53,6 +53,7 @@ void ld_pruning(
     std::vector<VariantInfo> variants;
     variants.reserve(matrix.nrows());
 
+    std::cout << "Loading variants ..." << std::endl;
     std::string line;
     while (std::getline(vars_in, line)) {
         if (line.empty() || line[0] == '#') continue;
@@ -64,7 +65,23 @@ void ld_pruning(
         }
 
         VariantInfo v;
-        v.chrom = std::stoul(chrom_str);
+
+        if (chrom_str.substr(0, 3) == "chr") {
+            chrom_str = chrom_str.substr(3);
+        }
+
+        if (chrom_str == "X") {
+            v.chrom = 23;
+        } else if (chrom_str == "Y") {
+            v.chrom = 24;
+        } else if (chrom_str == "XY") {
+            v.chrom = 25;
+        } else if (chrom_str == "MT" || chrom_str == "M") {
+            v.chrom = 26;
+        } else {
+            v.chrom = std::stoul(chrom_str);
+        }
+
         v.pos = std::stoull(pos_str);
         variants.push_back(v);
     }
