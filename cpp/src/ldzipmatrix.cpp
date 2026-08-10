@@ -706,8 +706,9 @@ void LDZipMatrix::preload_segment(uint32_t start_col, uint32_t end_col) {
 }
 
 uint32_t LDZipMatrix::get_segment_end(uint32_t start_col, size_t max_bytes) const {
-    if (version_ != "3.0") return ncols_ - 1;
-
+    if (version_ != "3.0") {
+        throw std::runtime_error("Preload only supported on v3.0 and above");
+    }
     size_t chunk = i_chunked_reader_->getChunkForColumn(start_col);
     uint64_t accumulated = 0;
 
