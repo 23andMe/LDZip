@@ -5,3 +5,4 @@ bits: 8
 min: 0.01
 prefix: 'test_npz'
 concat_pairwise: true
+ld_threads: 1
