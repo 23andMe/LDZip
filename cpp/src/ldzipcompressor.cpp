@@ -13,17 +13,16 @@ LDZipCompressor::LDZipCompressor(size_t nrows,
                          size_t chunk_size)
     :   m_(nrows, ncols, format, stats, bits, prefix, chunk_size),
         mode_(mode),
-        chunk_size_(chunk_size),
         diag_vals{1.0f} {
 
-    if (chunk_size_ == 0)
+    if (chunk_size == 0)
         throw std::runtime_error("chunk_size must be > 0 for v3.0");
 
     p_stream_.open(m_.pFile(), std::ios::out | std::ios::binary | std::ios::trunc);
 
-    i_chunked_writer_ = std::make_unique<ChunkedWriter>(m_.iFile(), m_.iIndexFile(), chunk_size_);
+    i_chunked_writer_ = std::make_unique<ChunkedWriter>(m_.iFile(), m_.iIndexFile(), chunk_size);
     for (Stat s : m_.stats_available_)
-        x_chunked_writers_[s] = std::make_unique<ChunkedWriter>(m_.xFile(s), m_.xIndexFile(s), chunk_size_);
+        x_chunked_writers_[s] = std::make_unique<ChunkedWriter>(m_.xFile(s), m_.xIndexFile(s), chunk_size);
 
     diag_vals[Stat::D] = std::numeric_limits<float>::quiet_NaN();
     active_column_ = -1;

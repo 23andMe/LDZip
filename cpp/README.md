@@ -29,6 +29,7 @@ It supports the following main operations, each with its own subcommands and opt
 2. **decompress** – Restore a `.ldzip` archive back into PLINK tabular or binary LD matrices.  
 3. **concat** – Merge multiple `.ldzip` chunks into a single combined archive.  
 4. **filter** – Filter a `.ldzip` file based on 0-based indices to another `.ldzip` file.  
+5. **find-tag-variants** – Find tag variants above an LD threshold for a list of query variants.
 
 ---
 
@@ -115,3 +116,30 @@ bin/ldzip filter \
     --range 5-15 \
     --output_prefix test_filtered 
 ```
+
+---
+
+### Find Tag Variants
+
+The `find-tag-variants` operation identifies tag variants above a specified LD threshold for a list of query variants.
+
+| Option          | Description                                                                                                                               | Required / Default |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `--input_prefix`     | Path to the input compressed LD matrix file (expects `.x.<stat>.bin`, `.x.<stat>.bin.index`, `.i.bin`, `.i.bin.index`, `.p.bin`, `.meta.json`)      | **Required**       |
+| `--variants`    | File containing 0-based variant indices (one per line) to query      | **Required**       |
+| `--output` | Output file with tab-separated variant and tag_variant pairs | **Required**       |
+| `--threshold`        | Absolute LD threshold for identifying tags  | Default: *0.8*       |
+| `--stat`             | LD statistic to use (e.g., UNPHASED_R, PHASED_R, UNPHASED_R2)    | Default: *UNPHASED_R*       |
+
+**Example Usage:**
+
+```
+bin/ldzip find-tag-variants \
+    --input_prefix compressed \
+    --variants variants.txt \
+    --output tags.txt \
+    --threshold 0.8 \
+    --stat UNPHASED_R
+```
+
+**Note:** This operation is only supported for v3.0 chunked format matrices.

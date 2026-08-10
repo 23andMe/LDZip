@@ -37,7 +37,6 @@ private:
 
     //  --- Private file handlers
     Mode mode_;
-    size_t chunk_size_{0};
     mutable std::fstream p_stream_;
 
     // v3.0 chunked compression (always used for writing)

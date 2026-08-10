@@ -1,4 +1,4 @@
-.check_fetchLD_inputs <- function(row, col, pairwise) {
+.check_fetchLD_inputs <- function(ld, row, col, pairwise) {
 
   if (!length(row) || !length(col))
     stop("`row` and `col` must be non-empty")
@@ -26,6 +26,17 @@
     stop("Numeric `row` indices must be positive integers")
   if (is.numeric(col) && any(col < 1 | col %% 1 != 0))
     stop("Numeric `col` indices must be positive integers")
+
+  if (is.numeric(row)) {
+    max_row <- LDZipMatrix_nrows_rcpp(ld)
+    if (any(row > max_row))
+      stop(sprintf("Numeric `row` indices out of range (max: %d)", max_row))
+  }
+  if (is.numeric(col)) {
+    max_col <- LDZipMatrix_ncols_rcpp(ld)
+    if (any(col > max_col))
+      stop(sprintf("Numeric `col` indices out of range (max: %d)", max_col))
+  }
 
   invisible(TRUE)
 }
@@ -160,11 +171,18 @@ fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplif
 		stop("`ld` must be an LDZipMatrix object")
 	}
 
-	.check_fetchLD_inputs(row, col, pairwise)
+	.check_fetchLD_inputs(ld, row, col, pairwise)
 	rowNames = row
 	colNames = col
 
 	variant_db_file <- paste(LDZipMatrix_get_prefix_rcpp(ld), "sqlite", sep=".")
+
+	# Check if variant database exists when using character/region inputs
+	if (is.character(row) || is.character(col)) {
+		if (!file.exists(variant_db_file)) {
+			stop(sprintf("Variant database not found: %s\nPlease run buildIndex(ld) to create the index.", variant_db_file))
+		}
+	}
 
 	row_resolved <- .resolve_variant_input(row, variant_db_file)
 	col_resolved <- .resolve_variant_input(col, variant_db_file)

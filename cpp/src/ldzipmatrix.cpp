@@ -37,6 +37,10 @@ LDZipMatrix::LDZipMatrix(size_t nrows,
       format_(format),
       file_prefix_(prefix) {
 
+    if (chunk_size == 0) {
+        throw std::runtime_error("v3.0 with chunk_size=0 not supported");
+    }
+
     for (Stat s : stats) {
         has_stat_[s] = true;
         stats_available_.push_back(s);
@@ -73,7 +77,10 @@ LDZipMatrix::LDZipMatrix(const std::string& prefix) :   file_prefix_(prefix) {
     chunk_size_ = meta.chunk_size;
 
     // v3.0: Initialize chunked readers
-    if (version_ == "3.0" && chunk_size_ > 0) {
+    if (version_ == "3.0") {
+        if (chunk_size_ == 0) {
+            throw std::runtime_error("v3.0 with chunk_size=0 not supported");
+        }
         i_chunked_reader_ = std::make_unique<ChunkedReader>(iFile(), iIndexFile(), chunk_size_);
 
         for (Stat s : All_Stats()) if (has_stat_[s]) {stats_available_.push_back(s); x_chunked_readers_[s] = std::make_unique<ChunkedReader>(xFile(s), xIndexFile(s), chunk_size_);}
@@ -176,7 +183,7 @@ std::vector<uint32_t> LDZipMatrix::get_i(uint32_t column) const {
     std::vector<uint32_t> i_buf(nnz_column);
     if (nnz_column == 0) return i_buf;
 
-    if (version_ == "3.0" && chunk_size_ > 0) {
+    if (version_ == "3.0") {
         // v3.0: Read from compressed chunks (int32_t deltas)
 
         // 1. Determine which chunk contains this column (using index, ignoring metadata chunk_size)
@@ -273,7 +280,7 @@ std::vector<float> LDZipMatrix::get_x(uint32_t column, Stat stat) const {
     std::vector<float> x_buf(nnz);
 
     // v3.0: Read from chunked compressed file
-    if (version_ == "3.0" && chunk_size_ > 0) {
+    if (version_ == "3.0") {
         size_t chunk_id = x_chunked_readers_[stat]->getChunkForColumn(column);
         const auto& chunk_data = x_chunked_readers_[stat]->readChunk(chunk_id);
 
@@ -621,6 +628,99 @@ void LDZipMatrix::readVariants(const std::string& snp_file) {
     if (variants_.size() != nrows_) {
         throw std::runtime_error("Variant count does not match matrix row count");
     }
+}
+
+size_t LDZipMatrix::get_total_file_size() const {
+    auto get_file_size = [](const std::string& path) -> size_t {
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file) throw std::runtime_error("Cannot open file to check size: " + path);
+        return file.tellg();
+    };
+
+    size_t total = 0;
+    total += get_file_size(pFile());
+    total += get_file_size(iFile());
+    for (Stat s : stats_available_) total += get_file_size(xFile(s));
+
+    if (version_ == "3.0") {
+        total += get_file_size(iIndexFile());
+        for (Stat s : stats_available_) total += get_file_size(xIndexFile(s));
+    } else if (version_ == "2.1") {
+        total += get_file_size(IFile());
+        total += get_file_size(IIndexFile());
+    }
+
+    return total;
+}
+
+void LDZipMatrix::preload_data() {
+    if (version_ != "3.0") {
+        throw std::runtime_error("Preload only supported on v3.0 and above");
+    }
+
+    std::cout << "Preloading compressed data into memory..." << std::endl;
+
+    size_t total_size = get_total_file_size();
+    const size_t max_size = 8ULL * 1024 * 1024 * 1024; // 8GB
+    double size_gb = total_size / (1024.0 * 1024 * 1024);
+
+    if (total_size > max_size) {
+        throw std::runtime_error("Input file too large to preload. Use segment-based approach instead.");
+    }
+
+    std::cout << "Total compressed size: " << size_gb << " GB" << std::endl;
+
+    std::vector<char> buffer(64 * 1024 * 1024); // 64MB read buffer
+
+    auto read_file = [&buffer](const std::string& path) {
+        std::ifstream file(path, std::ios::binary);
+        if (!file) throw std::runtime_error("Cannot open file for preload: " + path);
+        while (file.read(buffer.data(), buffer.size()) || file.gcount() > 0) {}
+        file.close();
+    };
+
+    read_file(pFile());
+    read_file(iFile());
+    read_file(iIndexFile());
+    for (Stat s : stats_available_) {
+        read_file(xFile(s));
+        read_file(xIndexFile(s));
+    }
+
+    std::cout << "Preload complete" << std::endl;
+}
+
+void LDZipMatrix::preload_segment(uint32_t start_col, uint32_t end_col) {
+    if (version_ != "3.0") {
+        throw std::runtime_error("Preload only supported on v3.0 and above");
+    }
+
+    uint32_t end = std::min(end_col, static_cast<uint32_t>(ncols_ - 1));
+
+    std::cout << "Preloading segment: columns " << start_col << " to " << end << "..." << std::endl;
+
+    i_chunked_reader_->preloadColumns(start_col, end);
+    for (Stat s : stats_available_) {
+        x_chunked_readers_[s]->preloadColumns(start_col, end);
+    }
+}
+
+uint32_t LDZipMatrix::get_segment_end(uint32_t start_col, size_t max_bytes) const {
+    if (version_ != "3.0") {
+        throw std::runtime_error("Preload only supported on v3.0 and above");
+    }
+    size_t chunk = i_chunked_reader_->getChunkForColumn(start_col);
+    uint64_t accumulated = 0;
+
+    for (; chunk < i_chunked_reader_->getNumChunks(); ++chunk) {
+        uint64_t size = i_chunked_reader_->getChunkSize(chunk);
+        for (Stat s : stats_available_) size += x_chunked_readers_[s]->getChunkSize(chunk);
+        if (accumulated + size > max_bytes && accumulated > 0) break;
+        accumulated += size;
+    }
+
+    uint32_t end_col = i_chunked_reader_->getChunkStartColumn(chunk) - 1;
+    return std::min(end_col, static_cast<uint32_t>(ncols_ - 1));
 }
 
 MetaInfo LDZipMatrix::metaInfo() const{

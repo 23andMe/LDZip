@@ -32,6 +32,12 @@ namespace ldzip {
             LDZipMatrix     (size_t nrows, size_t ncols, MatrixFormat format, const std::vector<Stat>& stats, Bits bits, const std::string& prefix, size_t chunk_size = 0);
             LDZipMatrix     (const std::string& prefix);
 
+            // --- Preload ---
+            void            preload_data();
+            void            preload_segment(uint32_t start_col, uint32_t end_col);
+            uint32_t        get_segment_end(uint32_t start_col, size_t max_bytes) const;
+            size_t          get_total_file_size() const;
+
             // --- Metadata/Size Access ---
             std::string     version()       const noexcept { return version_; }
             size_t          nrows()         const noexcept { return nrows_; }
@@ -161,7 +167,7 @@ namespace ldzip {
             size_t nrows_{0};
             size_t ncols_{0};
             uint64_t nnz_{0};
-            size_t chunk_size_{0};  // v3.0+: columns per chunk (0 = uncompressed)
+            size_t chunk_size_{0};  // v3.0+: columns per chunk
             Bits bits_{Bits::B8};
             MatrixFormat format_{MatrixFormat::UPPER};
             mutable EnumArray<bool, Stat> has_stat_{};

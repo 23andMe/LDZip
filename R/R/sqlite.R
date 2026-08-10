@@ -129,6 +129,7 @@ get_cpra_from_indices <- function(db_file, indices) {
     paste0(indices, collapse = ",")
   )
   res <- DBI::dbGetQuery(con, sql)
+  if (nrow(res) == 0) stop('No matching variants found for indices')
 
   # rebuild identifiers
   res$ID <- join_variant_identifier(res$RSNUM, res$RSLEV)

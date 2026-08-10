@@ -24,7 +24,7 @@ for (simplify in c(TRUE, FALSE)) {
                    "multi =", multi)
 
       ## 1x1
-      out1 <- fetchLD(ld, one, one, type = types, simplify = simplify)
+      out1 <- fetchLD(ld, one, one, types = types, simplify = simplify)
       if (!multi && simplify) {
         expect_inherits(out1, "numeric", info = msg)
         expect_equal(length(out1), 1, info = msg)
@@ -39,7 +39,7 @@ for (simplify in c(TRUE, FALSE)) {
       }
 
       ## 1xN
-      out2 <- fetchLD(ld, one, many, type = types, simplify = simplify)
+      out2 <- fetchLD(ld, one, many, types = types, simplify = simplify)
       if (simplify && !multi) {
         expect_true(is.atomic(out2), info = msg)
         expect_equal(length(out2), length(many), info = msg)
@@ -54,7 +54,7 @@ for (simplify in c(TRUE, FALSE)) {
       }
 
       ## NxN
-      out3 <- fetchLD(ld, many, many, type = types, simplify = simplify)
+      out3 <- fetchLD(ld, many, many, types = types, simplify = simplify)
       if (simplify && !multi) {
         expect_true(is.matrix(out3), info = msg)
         expect_equal(dim(out3), c(length(many), length(many)), info = msg)
@@ -98,7 +98,7 @@ res2 <- getNeighbors(ld, "rs587755077",
 expect_inherits(res2, "character")
 
 # Verify D' values are 1
-out <- fetchLD(ld, "rs587755077", res2, type = "DPRIME", simplify = TRUE)
+out <- fetchLD(ld, "rs587755077", res2, types = "DPRIME", simplify = TRUE)
 if (length(out) > 0) {
   if (is.data.frame(out)) {
     expect_true(all(abs(out$DPRIME - 1) < 1e-8))

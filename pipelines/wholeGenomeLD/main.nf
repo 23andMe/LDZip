@@ -38,7 +38,7 @@ process getChromosomeBounds {
 process vcfToPgen {
     tag { "chr${chr}" }
     cpus { params.ld_threads }
-    memory { 8.GB * task.attempt }
+    memory { 2.GB * task.cpus * task.attempt }
     publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
     publishDir "${params.outdir}/pgen/", mode: 'link', overwrite: true, pattern: "converted.chr${chr}.*", enabled: params.stage_pgen
 
@@ -55,7 +55,7 @@ process vcfToPgen {
     ${PLINK2} \\
         --vcf ${vcf_file}.vcf.gz \\
         --make-pgen \\
-        --threads ${params.ld_threads} \\
+        --threads ${task.cpus} \\
         --out converted.chr${chr}
     """
 
@@ -70,7 +70,7 @@ process vcfToPgen {
 process ldPlink {
     tag { "chr${chr}-chunk${chunk_id}" }
     cpus { params.ld_threads }
-    memory { 8.GB * task.attempt }
+    memory { 8.GB * task.cpus * task.attempt }
     publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
     publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr${chr}_${chunk_id}.*", enabled: params.stage_plink
 
@@ -94,7 +94,7 @@ process ldPlink {
         --pfile ${pfile_base} ${subset_snps} ${exclude_snps} ${chunk_filter} ${ld_filter} --force-intersect \\
         --rm-dup exclude-all \\
         --make-just-pvar \\
-        --threads ${params.ld_threads} \\
+        --threads ${task.cpus} \\
         --out plink.chr${chr}_${chunk_id} || touch plink.chr${chr}_${chunk_id}.pvar
 
     if [ -s plink.chr${chr}_${chunk_id}.pvar ]; then
@@ -104,8 +104,8 @@ process ldPlink {
             --ld-window-kb ${params.ld_window_kb} \\
             --ld-window-r2 ${params.ld_window_r2} \\
             ${plink_ld_command} \\
-            --threads ${params.ld_threads} \\
-            --memory ${params.ld_threads * (task.memory.toMega()-1024)} \\
+            --threads ${task.cpus} \\
+            --memory ${(task.memory.toMega()-1024)} \\
             --out plink.chr${chr}_${chunk_id}
     else
         touch plink.chr${chr}_${chunk_id}.vcor

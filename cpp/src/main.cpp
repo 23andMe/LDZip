@@ -5,6 +5,7 @@
 #include "binary_decompressor.hpp"
 #include "concat.hpp"
 #include "filter.hpp"
+#include "find_tag_variants.hpp"
 
 
 int main(int argc, char** argv) {
@@ -31,6 +32,7 @@ int main(int argc, char** argv) {
     auto compress = app.add_subcommand("compress", "Compress a binary LD matrix");
     auto filter = app.add_subcommand("filter", "Filter a .ldzip binary matrix");
     auto decompress = app.add_subcommand("decompress", "Decompress a .ldzip binary matrix");
+    auto find_tag = app.add_subcommand("find-tag-variants", "Find tag variants above LD threshold");
     auto plink_bin = compress->add_subcommand("plinkSquare","Plink Binary Input");
     auto plink_tabular = compress->add_subcommand("plinkTabular","Plink Tabular Input");
 
@@ -64,6 +66,15 @@ int main(int argc, char** argv) {
     decompress->add_option("-i,--input_prefix",     input_prefix,   "Input .ldzip prefix (expects .x.<stat>.bin, .x.<stat>.bin.index, .i.bin, .i.bin.index, .p.bin, .meta.json)")->required();
     decompress->add_option("-t,--type",             type,           "Output Type (tabular or binary)")->default_val(type);
     decompress->add_option("-o,--output_prefix",    output_prefix,  "Output path for decompressed matrix")->required();
+
+    // Subcommand: find-tag-variants
+    std::string variant_file, stat_type = "UNPHASED_R";
+    double tag_threshold = 0.8;
+    find_tag->add_option("-i,--input_prefix", input_prefix, "Input .ldzip prefix")->required();
+    find_tag->add_option("-v,--variants", variant_file, "File with variant indices (0-based, one per line)")->required()->check(CLI::ExistingFile);
+    find_tag->add_option("-o,--output", output_prefix, "Output file for tag variants")->required();
+    find_tag->add_option("-t,--threshold", tag_threshold, "Absolute LD threshold")->check(CLI::NonNegativeNumber)->default_val(std::to_string(tag_threshold));
+    find_tag->add_option("-s,--stat", stat_type, "LD statistic to use")->check(CLI::IsMember(column_names, CLI::ignore_case))->default_val(stat_type);
 
     // Subcommand: concat
     std::vector<std::string> input_chunks;
@@ -139,6 +150,10 @@ int main(int argc, char** argv) {
     } else if (decompress->parsed()) {
 
         ldzip::decompress_ldzip(input_prefix, output_prefix, type);
+
+    } else if (find_tag->parsed()) {
+
+        ldzip::find_tag_variants(input_prefix, variant_file, output_prefix, tag_threshold, stat_type);
 
     } else if (concat->parsed()) {
 

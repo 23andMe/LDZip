@@ -320,6 +320,26 @@ namespace ldzip {
 
             size_t getNumChunks() const { return num_chunks_; }
             size_t getTotalColumns() const { return column_counts_.back(); }
+            uint64_t getByteOffset(size_t chunk_id) const { return byte_offsets_[chunk_id]; }
+            uint64_t getChunkSize(size_t chunk_id) const { return byte_offsets_[chunk_id + 1] - byte_offsets_[chunk_id]; }
+
+            void preloadColumns(uint32_t start_col, uint32_t end_col) const {
+                size_t start_chunk = getChunkForColumn(start_col);
+                size_t end_chunk = getChunkForColumn(end_col);
+                uint64_t start_byte = byte_offsets_[start_chunk];
+                uint64_t end_byte = byte_offsets_[end_chunk + 1];
+
+                std::vector<char> buffer(64 * 1024 * 1024);
+                std::ifstream file(chunks_path_, std::ios::binary);
+                if (!file) throw std::runtime_error("Cannot open: " + chunks_path_);
+                file.seekg(start_byte);
+                uint64_t remaining = end_byte - start_byte;
+                while (remaining > 0 && file) {
+                    size_t to_read = std::min(remaining, (uint64_t)buffer.size());
+                    file.read(buffer.data(), to_read);
+                    remaining -= file.gcount();
+                }
+            }
 
             ~ChunkedReader() {
                 if (chunks_file_.is_open()) chunks_file_.close();
