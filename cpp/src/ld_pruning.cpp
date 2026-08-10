@@ -55,6 +55,8 @@ static size_t process_chromosome(
     std::vector<bool> removed(chrom_variants.size(), false);
     size_t removed_count = 0;
 
+    uint32_t chrom_start = chrom_variants.front().global_idx;
+
     for (uint32_t i = 0; i < chrom_variants.size(); ++i) {
         if (removed[i]) continue;
 
@@ -64,17 +66,14 @@ static size_t process_chromosome(
         for (uint32_t neighbor_idx : neighbors) {
             if (neighbor_idx <= global_idx) continue;
 
-            for (uint32_t j = i + 1; j < chrom_variants.size(); ++j) {
-                if (chrom_variants[j].global_idx != neighbor_idx) continue;
-                if (removed[j]) break;
+            uint32_t j = neighbor_idx - chrom_start;
+            if (removed[j]) continue;
 
-                uint64_t dist_bp = chrom_variants[j].pos - chrom_variants[i].pos;
-                if (dist_bp > window_bp) break;
+            uint64_t dist_bp = chrom_variants[j].pos - chrom_variants[i].pos;
+            if (dist_bp > window_bp) continue;
 
-                removed[j] = true;
-                removed_count++;
-                break;
-            }
+            removed[j] = true;
+            removed_count++;
         }
     }
 
