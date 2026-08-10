@@ -52,8 +52,6 @@ static size_t process_chromosome(
 ) {
     if (chrom_variants.empty()) return 0;
 
-    std::cout << "Processing chromosome " << current_chrom << " (" << chrom_variants.size() << " variants)..." << std::endl;
-
     std::vector<bool> removed(chrom_variants.size(), false);
     size_t removed_count = 0;
 
@@ -115,7 +113,8 @@ void ld_pruning(
         throw std::runtime_error("Cannot open variant file: " + vars_file);
     }
 
-    if (matrix.get_total_file_size() <= 8ULL * 1024 * 1024 * 1024) {
+    bool use_full_preload = (matrix.get_total_file_size() <= 8ULL * 1024 * 1024 * 1024);
+    if (use_full_preload) {
         matrix.preload_data();
     }
 
@@ -158,7 +157,10 @@ void ld_pruning(
             first_variant = false;
         } else if (v.chrom != current_chrom) {
             if (!chrom_variants.empty()) {
-                matrix.preload_segment(chrom_variants.front().global_idx, chrom_variants.back().global_idx);
+                std::cout << "Processing chromosome " << current_chrom << " (" << chrom_variants.size() << " variants)..." << std::endl;
+                if (!use_full_preload) {
+                    matrix.preload_segment(chrom_variants.front().global_idx, chrom_variants.back().global_idx);
+                }
                 total_removed += process_chromosome(chrom_variants, current_chrom, matrix, threshold, stat, window_bp, prune_in, prune_out);
             }
             current_chrom = v.chrom;
@@ -170,7 +172,10 @@ void ld_pruning(
     }
 
     if (!chrom_variants.empty()) {
-        matrix.preload_segment(chrom_variants.front().global_idx, chrom_variants.back().global_idx);
+        std::cout << "Processing chromosome " << current_chrom << " (" << chrom_variants.size() << " variants)..." << std::endl;
+        if (!use_full_preload) {
+            matrix.preload_segment(chrom_variants.front().global_idx, chrom_variants.back().global_idx);
+        }
         total_removed += process_chromosome(chrom_variants, current_chrom, matrix, threshold, stat, window_bp, prune_in, prune_out);
     }
 
