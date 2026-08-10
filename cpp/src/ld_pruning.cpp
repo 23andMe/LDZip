@@ -12,83 +12,19 @@ namespace ldzip {
 struct VariantInfo {
     uint32_t chrom;
     uint64_t pos;
-    uint32_t global_idx;
-
-    static VariantInfo parse(const std::string& chrom_str, const std::string& pos_str, uint32_t idx) {
-        VariantInfo v;
-        v.global_idx = idx;
-        v.pos = std::stoull(pos_str);
-
-        std::string chrom = chrom_str;
-        if (chrom.substr(0, 3) == "chr") {
-            chrom = chrom.substr(3);
-        }
-
-        if (chrom == "X") {
-            v.chrom = 23;
-        } else if (chrom == "Y") {
-            v.chrom = 24;
-        } else if (chrom == "XY") {
-            v.chrom = 25;
-        } else if (chrom == "MT" || chrom == "M") {
-            v.chrom = 26;
-        } else {
-            v.chrom = std::stoul(chrom);
-        }
-
-        return v;
-    }
 };
 
-static size_t process_chromosome(
-    std::vector<VariantInfo>& chrom_variants,
-    uint32_t current_chrom,
-    LDZipMatrix& matrix,
-    double threshold,
-    Stat stat,
-    uint64_t window_bp,
-    std::ofstream& prune_in,
-    std::ofstream& prune_out
-) {
-    if (chrom_variants.empty()) return 0;
-
-    std::vector<bool> removed(chrom_variants.size(), false);
-    size_t removed_count = 0;
-
-    uint32_t chrom_start = chrom_variants.front().global_idx;
-
-    for (uint32_t i = 0; i < chrom_variants.size(); ++i) {
-        if (removed[i]) continue;
-
-        uint32_t global_idx = chrom_variants[i].global_idx;
-        const auto& neighbors = matrix.get_neighbors(global_idx, threshold, stat);
-
-        for (uint32_t neighbor_idx : neighbors) {
-            if (neighbor_idx <= global_idx) continue;
-
-            uint32_t j = neighbor_idx - chrom_start;
-            if (removed[j]) continue;
-
-            uint64_t dist_bp = chrom_variants[j].pos - chrom_variants[i].pos;
-            if (dist_bp > window_bp) continue;
-
-            removed[j] = true;
-            removed_count++;
-        }
+static uint32_t parse_chrom(const std::string& chrom_str) {
+    std::string chrom = chrom_str;
+    if (chrom.substr(0, 3) == "chr") {
+        chrom = chrom.substr(3);
     }
 
-    for (uint32_t i = 0; i < chrom_variants.size(); ++i) {
-        if (removed[i]) {
-            prune_out << chrom_variants[i].global_idx << "\n";
-        } else {
-            prune_in << chrom_variants[i].global_idx << "\n";
-        }
-    }
-
-    std::cout << "Chromosome " << current_chrom << ": kept " << (chrom_variants.size() - removed_count) << ", removed " << removed_count << std::endl;
-
-    chrom_variants.clear();
-    return removed_count;
+    if (chrom == "X") return 23;
+    if (chrom == "Y") return 24;
+    if (chrom == "XY") return 25;
+    if (chrom == "MT" || chrom == "M") return 26;
+    return std::stoul(chrom);
 }
 
 void ld_pruning(
@@ -112,12 +48,67 @@ void ld_pruning(
         throw std::runtime_error("Cannot open variant file: " + vars_file);
     }
 
-    bool use_full_preload = (matrix.get_total_file_size() <= 8ULL * 1024 * 1024 * 1024);
-    if (use_full_preload) {
+    std::vector<VariantInfo> variants;
+    variants.reserve(matrix.nrows());
+
+    std::cout << "Loading variants..." << std::endl;
+    std::string line;
+    while (std::getline(vars_in, line)) {
+        if (line.empty() || line[0] == '#') continue;
+
+        std::stringstream ss(line);
+        std::string chrom_str, pos_str;
+        if (!(ss >> chrom_str >> pos_str)) {
+            throw std::runtime_error("Invalid variant file format");
+        }
+
+        VariantInfo v;
+        v.chrom = parse_chrom(chrom_str);
+        v.pos = std::stoull(pos_str);
+        variants.push_back(v);
+    }
+    vars_in.close();
+
+    if (variants.size() != matrix.nrows()) {
+        throw std::runtime_error("Variant count mismatch");
+    }
+
+    std::cout << "Variants: " << variants.size() << std::endl;
+
+    if (matrix.get_total_file_size() <= 8ULL * 1024 * 1024 * 1024) {
         matrix.preload_data();
     }
 
+    std::vector<bool> removed(variants.size(), false);
+    size_t removed_count = 0;
+
     const uint64_t window_bp = static_cast<uint64_t>(window_kb) * 1000;
+
+    for (uint32_t i = 0; i < variants.size(); ++i) {
+        if (removed[i]) continue;
+
+        const auto& neighbors = matrix.get_neighbors(i, threshold, stat);
+
+        for (uint32_t j : neighbors) {
+            if (j <= i) continue;
+            if (removed[j]) continue;
+            if (variants[i].chrom != variants[j].chrom) {
+                throw std::runtime_error("Cross-chromosome LD should not exist");
+            }
+
+            uint64_t dist_bp = (variants[j].pos >= variants[i].pos) ? (variants[j].pos - variants[i].pos) : (variants[i].pos - variants[j].pos);
+            if (dist_bp > window_bp) continue;
+
+            removed[j] = true;
+            removed_count++;
+        }
+
+        if ((i + 1) % 10000 == 0) {
+            std::cout << "Processed " << (i + 1) << " / " << variants.size() << " variants, removed " << removed_count << std::endl;
+        }
+    }
+
+    std::cout << "Pruning complete: kept " << (variants.size() - removed_count) << ", removed " << removed_count << std::endl;
 
     std::ofstream prune_in(output_prefix + ".prune.in");
     std::ofstream prune_out(output_prefix + ".prune.out");
@@ -132,62 +123,17 @@ void ld_pruning(
     prune_in.rdbuf()->pubsetbuf(in_buffer.data(), buffer_size);
     prune_out.rdbuf()->pubsetbuf(out_buffer.data(), buffer_size);
 
-    size_t total_variants = 0;
-    size_t total_removed = 0;
-    std::string line;
-    std::vector<VariantInfo> chrom_variants;
-    uint32_t current_chrom = 0;
-    bool first_variant = true;
-    uint32_t variant_idx = 0;
-
-    while (std::getline(vars_in, line)) {
-        if (line.empty() || line[0] == '#') continue;
-
-        std::stringstream ss(line);
-        std::string chrom_str, pos_str;
-        if (!(ss >> chrom_str >> pos_str)) {
-            throw std::runtime_error("Invalid variant file format");
+    for (size_t i = 0; i < variants.size(); ++i) {
+        if (removed[i]) {
+            prune_out << i << "\n";
+        } else {
+            prune_in << i << "\n";
         }
-
-        VariantInfo v = VariantInfo::parse(chrom_str, pos_str, variant_idx);
-
-        if (first_variant) {
-            current_chrom = v.chrom;
-            first_variant = false;
-        } else if (v.chrom != current_chrom) {
-            if (!chrom_variants.empty()) {
-                std::cout << "Processing chromosome " << current_chrom << " (" << chrom_variants.size() << " variants)..." << std::endl;
-                if (!use_full_preload) {
-                    matrix.preload_segment(chrom_variants.front().global_idx, chrom_variants.back().global_idx);
-                }
-                total_removed += process_chromosome(chrom_variants, current_chrom, matrix, threshold, stat, window_bp, prune_in, prune_out);
-            }
-            current_chrom = v.chrom;
-        }
-
-        chrom_variants.push_back(v);
-        total_variants++;
-        variant_idx++;
     }
-
-    if (!chrom_variants.empty()) {
-        std::cout << "Processing chromosome " << current_chrom << " (" << chrom_variants.size() << " variants)..." << std::endl;
-        if (!use_full_preload) {
-            matrix.preload_segment(chrom_variants.front().global_idx, chrom_variants.back().global_idx);
-        }
-        total_removed += process_chromosome(chrom_variants, current_chrom, matrix, threshold, stat, window_bp, prune_in, prune_out);
-    }
-
-    vars_in.close();
 
     prune_in.close();
     prune_out.close();
 
-    if (total_variants != matrix.nrows()) {
-        throw std::runtime_error("Variant count mismatch");
-    }
-
-    std::cout << "Pruning complete: kept " << (total_variants - total_removed) << ", removed " << total_removed << std::endl;
     std::cout << "Output written to " << output_prefix << ".prune.in and .prune.out" << std::endl;
 }
 
