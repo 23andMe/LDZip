@@ -109,9 +109,7 @@ void ld_score(
 
         for (uint32_t j = 0; j < column_values.size(); ++j) {
             if (i == j) continue;
-            if (variants[i].chrom != variants[j].chrom) {
-                throw std::runtime_error("Cross-chromosome LD should not exist");
-            }
+            if (variants[i].chrom != variants[j].chrom) continue;
 
             uint64_t dist_bp = (variants[j].pos >= variants[i].pos) ? (variants[j].pos - variants[i].pos) : (variants[i].pos - variants[j].pos);
             if (dist_bp > window_bp) continue;
