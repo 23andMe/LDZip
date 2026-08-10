@@ -6,6 +6,7 @@
 #include "concat.hpp"
 #include "filter.hpp"
 #include "find_tag_variants.hpp"
+#include "ld_pruning.hpp"
 
 
 int main(int argc, char** argv) {
@@ -33,6 +34,7 @@ int main(int argc, char** argv) {
     auto filter = app.add_subcommand("filter", "Filter a .ldzip binary matrix");
     auto decompress = app.add_subcommand("decompress", "Decompress a .ldzip binary matrix");
     auto find_tag = app.add_subcommand("find-tag-variants", "Find tag variants above LD threshold");
+    auto prune = app.add_subcommand("prune", "LD-based variant pruning (greedy pairwise)");
     auto plink_bin = compress->add_subcommand("plinkSquare","Plink Binary Input");
     auto plink_tabular = compress->add_subcommand("plinkTabular","Plink Tabular Input");
 
@@ -75,6 +77,16 @@ int main(int argc, char** argv) {
     find_tag->add_option("-o,--output", output_prefix, "Output file for tag variants")->required();
     find_tag->add_option("-t,--threshold", tag_threshold, "Absolute LD threshold")->check(CLI::NonNegativeNumber)->default_val(std::to_string(tag_threshold));
     find_tag->add_option("-s,--stat", stat_type, "LD statistic to use")->check(CLI::IsMember(column_names, CLI::ignore_case))->default_val(stat_type);
+
+    // Subcommand: prune
+    size_t window_kb = 1000;
+    double prune_threshold = 0.5;
+    std::string prune_stat = "UNPHASED_R";
+    prune->add_option("-i,--input_prefix", input_prefix, "Input .ldzip prefix")->required();
+    prune->add_option("-o,--output_prefix", output_prefix, "Output prefix for .prune.in and .prune.out")->required();
+    prune->add_option("-w,--window", window_kb, "Window size in kb")->check(CLI::PositiveNumber)->default_val(std::to_string(window_kb));
+    prune->add_option("-t,--threshold", prune_threshold, "LD threshold for pruning")->check(CLI::NonNegativeNumber)->default_val(std::to_string(prune_threshold));
+    prune->add_option("-s,--stat", prune_stat, "LD statistic to use")->check(CLI::IsMember(column_names, CLI::ignore_case))->default_val(prune_stat);
 
     // Subcommand: concat
     std::vector<std::string> input_chunks;
@@ -154,6 +166,10 @@ int main(int argc, char** argv) {
     } else if (find_tag->parsed()) {
 
         ldzip::find_tag_variants(input_prefix, variant_file, output_prefix, tag_threshold, stat_type);
+
+    } else if (prune->parsed()) {
+
+        ldzip::ld_pruning(input_prefix, output_prefix, prune_threshold, window_kb, prune_stat);
 
     } else if (concat->parsed()) {
 
