@@ -90,7 +90,11 @@ test-ld-pruning:
 	@rm -rf tests/output/*
 	@cd tests && ./test_ld_pruning.sh
 
-test: create-dir test-square test-tabular test-concat test-filter test-find-tag-variants test-ld-pruning
+test-ld-score:
+	@rm -rf tests/output/*
+	@cd tests && ./test_ld_score.sh
+
+test: create-dir test-square test-tabular test-concat test-filter test-find-tag-variants test-ld-pruning test-ld-score
 
 create-dir:
 	@cd tests && mkdir -p output
