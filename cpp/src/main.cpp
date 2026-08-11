@@ -92,10 +92,12 @@ int main(int argc, char** argv) {
 
     // Subcommand: ldScore
     size_t ldscore_window_kb = 1000;
+    float ldscore_threshold = 0.0001;
     std::string ldscore_stat = "UNPHASED_R2";
     ldScore->add_option("-i,--input_prefix", input_prefix, "Input .ldzip prefix")->required();
     ldScore->add_option("-o,--output", output_prefix, "Output file for LD scores")->required();
     ldScore->add_option("-w,--window", ldscore_window_kb, "Window size in kb")->check(CLI::PositiveNumber)->default_val(std::to_string(ldscore_window_kb));
+    ldScore->add_option("-t,--threshold", ldscore_threshold, "Minimum LD threshold for inclusion")->check(CLI::NonNegativeNumber)->default_val(std::to_string(ldscore_threshold));
     ldScore->add_option("-s,--stat", ldscore_stat, "LD statistic to use")->check(CLI::IsMember(column_names, CLI::ignore_case))->default_val(ldscore_stat);
 
     // Subcommand: concat
@@ -183,7 +185,7 @@ int main(int argc, char** argv) {
 
     } else if (ldScore->parsed()) {
 
-        ldzip::ld_score(input_prefix, output_prefix, ldscore_window_kb, ldscore_stat);
+        ldzip::ld_score(input_prefix, output_prefix, ldscore_window_kb, ldscore_threshold, ldscore_stat);
 
     } else if (concat->parsed()) {
 
