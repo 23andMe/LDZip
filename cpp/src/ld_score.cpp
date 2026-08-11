@@ -100,37 +100,23 @@ void ld_score(
 
     out << "variant\tld_score\n";
 
-    std::vector<uint32_t> neighbors;
-    std::vector<int> neighbor_indices;
-    std::vector<double> neighbor_values;
-
     for (uint32_t i = 0; i < variants.size(); ++i) {
-        neighbors = matrix.get_neighbors(i, threshold, stat);
+        const auto& i_buf = matrix.get_i(i);
+        const auto& x_buf = matrix.get_x(i, stat);
 
-        neighbor_indices.clear();
-        for (uint32_t j : neighbors) {
+        double ld_score_val = 0.0;
+
+        for (size_t k = 0; k < i_buf.size(); ++k) {
+            uint32_t j = i_buf[k];
+            float ld_val = x_buf[k];
+
             if (i == j) continue;
+            if (std::abs(ld_val) < threshold) continue;
             if (variants[i].chrom != variants[j].chrom) continue;
 
             uint64_t dist_bp = (variants[j].pos >= variants[i].pos) ? (variants[j].pos - variants[i].pos) : (variants[i].pos - variants[j].pos);
             if (dist_bp > window_bp) continue;
 
-            neighbor_indices.push_back(static_cast<int>(j));
-        }
-
-        if (neighbor_indices.empty()) {
-            out << i << "\t" << 0.0 << "\n";
-            if ((i + 1) % 10000 == 0) {
-                std::cout << "Processed " << (i + 1) << " / " << variants.size() << " variants" << std::endl;
-            }
-            continue;
-        }
-
-        neighbor_values.resize(neighbor_indices.size());
-        matrix.getColumn(i, neighbor_indices.data(), neighbor_indices.size(), neighbor_values.data(), stat);
-
-        double ld_score_val = 0.0;
-        for (double ld_val : neighbor_values) {
             double r2 = need_square ? (ld_val * ld_val) : ld_val;
             ld_score_val += r2;
         }
