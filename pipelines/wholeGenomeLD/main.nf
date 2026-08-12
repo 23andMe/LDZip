@@ -21,8 +21,8 @@ process getChromosomeBounds {
         --make-just-pvar \\
         --threads 1 \\
         --out plink.chr${chr}
-    export min_pos=\$(awk '!/^#/ {print \$2; exit}' plink.chr${chr}.pvar)
-    export max_pos=\$(awk '!/^#/ {pos=\$2} END {print pos}' plink.chr${chr}.pvar)
+    min_pos=\$(awk '!/^#/ {print \$2; exit}' plink.chr${chr}.pvar)
+    max_pos=\$(awk '!/^#/ {pos=\$2} END {print pos}' plink.chr${chr}.pvar)
     """
 
     stub:
