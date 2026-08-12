@@ -11,7 +11,7 @@ nextflow run main.nf --help
 
 ## Run Quick Test
 
-| Note: Make sure your C++ binary `LDZip/cpp/bin/ldzip` is available in `$PATH` for the Nextflow pipelines to work. Otherwise, provide the path to the binary as `env.LDZIP` in `nextflow.config`
+| Note: Make sure your C++ binary `LDZip/cpp/bin/ldzip` is available in your shell `$PATH` environment variable for the Nextflow pipelines to work. Otherwise, provide the path to the binary as `env.LDZIP` in `nextflow.config`. Likewise, make sure the path to the plink2 executable is available in `$PATH` (or provide the path to the binary as `env.PLINK2` in `nextflow.config`).
 
 ```bash
 ./main.nf -params-file tests/yaml/unit1.yaml 

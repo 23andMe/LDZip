@@ -2,9 +2,6 @@
 
 nextflow.enable.dsl=2
 include { validateParameters; paramsSummaryLog } from 'plugin/nf-schema'
-validateParameters()
-
-CHROMS = params.chroms.tokenize(',')*.trim()
 
 process getChromosomeBounds {
     tag { "chr${chr}" }
@@ -14,18 +11,18 @@ process getChromosomeBounds {
         tuple val(chr), path(pgen), path(pvar), path(psam)
 
     output:
-        tuple val(chr), env(min_pos), env(max_pos), path(pgen), path(pvar), path(psam), emit: bounds
+        tuple val(chr), env('min_pos'), env('max_pos'), path(pgen), path(pvar), path(psam), emit: bounds
 
     script:
     """
-	${PLINK2} \\
-		--pfile ${pgen.baseName} \\
-		--chr ${chr} \\
-		--make-just-pvar \\
-		--threads 1 \\
-		--out plink.chr${chr}
-	min_pos=\$(awk '!/^#/ {print \$2; exit}' plink.chr${chr}.pvar)
-	max_pos=\$(awk '!/^#/ {pos=\$2} END {print pos}' plink.chr${chr}.pvar)
+    \$PLINK2 \\
+        --pfile ${pgen.baseName} \\
+        --chr ${chr} \\
+        --make-just-pvar \\
+        --threads 1 \\
+        --out plink.chr${chr}
+    export min_pos=\$(awk '!/^#/ {print \$2; exit}' plink.chr${chr}.pvar)
+    export max_pos=\$(awk '!/^#/ {pos=\$2} END {print pos}' plink.chr${chr}.pvar)
     """
 
     stub:
@@ -39,8 +36,8 @@ process vcfToPgen {
     tag { "chr${chr}" }
     cpus { params.ld_threads }
     memory { 2.GB * task.cpus * task.attempt }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/pgen/", mode: 'link', overwrite: true, pattern: "converted.chr${chr}.*", enabled: params.stage_pgen
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir "${params.outdir}/pgen/", mode: 'link', overwrite: true, pattern: "converted.chr*.*", enabled: params.stage_pgen
 
     input:
         tuple val(chr), path(vcf)
@@ -52,7 +49,7 @@ process vcfToPgen {
     script:
     def vcf_file = params.vcf_template.replace('{CHR}', chr)
     """
-    ${PLINK2} \\
+    \$PLINK2 \\
         --vcf ${vcf_file}.vcf.gz \\
         --make-pgen \\
         --threads ${task.cpus} \\
@@ -71,8 +68,8 @@ process ldPlink {
     tag { "chr${chr}-chunk${chunk_id}" }
     cpus { params.ld_threads }
     memory { 8.GB * task.cpus * task.attempt }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr${chr}_${chunk_id}.*", enabled: params.stage_plink
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr*.*", enabled: params.stage_plink
 
     input:
         tuple val(chr), val(chunk_id), val(start_bp), val(end_bp), path(pgen), path(pvar), path(psam)
@@ -90,7 +87,7 @@ process ldPlink {
     def plink_ld_command = params.ld_command ? "${params.ld_command}" : "--r-phased ref-based cols=id,ref,alt,dprime"
     def chunk_filter = (end_bp > 0) ? "--chr ${chr} --from-bp ${start_bp} --to-bp ${end_bp}" : "--chr ${chr}"
     """
-    ${PLINK2} \\
+    \$PLINK2 \\
         --pfile ${pfile_base} ${subset_snps} ${exclude_snps} ${chunk_filter} ${ld_filter} --force-intersect \\
         --rm-dup exclude-all \\
         --make-just-pvar \\
@@ -99,7 +96,7 @@ process ldPlink {
 
     if [ -s plink.chr${chr}_${chunk_id}.pvar ]; then
         cat plink.chr${chr}_${chunk_id}.pvar | grep -v '#' | cut -f 3 > ids
-        ${PLINK2} \\
+        \$PLINK2 \\
             --pfile ${pfile_base} --extract ids ${subset_samples} \\
             --ld-window-kb ${params.ld_window_kb} \\
             --ld-window-r2 ${params.ld_window_r2} \\
@@ -121,8 +118,8 @@ process ldPlink {
 process compressLD {
     tag { "chr${chr}-chunk${chunk_id}" }
     memory { 8.GB * task.attempt }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/chunks/", mode: 'link', overwrite: true, pattern: "chr${chr}_${chunk_id}.ldzip.*", enabled: params.stage_chunk
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir "${params.outdir}/chunks/", mode: 'link', overwrite: true, pattern: "chr*.ldzip.*", enabled: params.stage_chunk
 
     input:
         tuple val(chr), val(chunk_id), val(type), path(ld_file), path(snp_file)
@@ -136,7 +133,7 @@ process compressLD {
     def extra_args = type == "tabular" ? "--min_col ${params.min_col}" : "--type ${params.npz_ld_type}"
     """
     if [ -s ${ld_file} ]; then
-        ${LDZIP} compress ${compress_cmd} \\
+        \$LDZIP compress ${compress_cmd} \\
           --ld_file ${ld_file} \\
           --snp_file ${snp_file} \\
           --output_prefix chr${chr}_${chunk_id}.ldzip \\
@@ -156,9 +153,9 @@ process compressLD {
 
 process convertNpzToBinary {
     tag { "chr${chr}-chunk${chunk_id}" }
-    memory { System.getenv('CONSTRAIN_MEMORY') ? 8.GB : 16.GB * task.attempt }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr${chr}_${chunk_id}.*", enabled: params.stage_binary
+    memory { env('CONSTRAIN_MEMORY') ? 8.GB : 16.GB * task.attempt }
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr*.*", enabled: params.stage_binary
 
     input:
         tuple val(chr), val(chunk_id), path(npz_file), path(gz_file)
@@ -185,7 +182,7 @@ process convertNpzToBinary {
 process concatPairwise {
     tag { "chr${chr}-pair${pair_id}" }
     memory { 8.GB * task.attempt }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
 
     input:
         tuple val(chr), val(pair_id), path("*")
@@ -196,7 +193,7 @@ process concatPairwise {
 
     script:
     """
-    ${LDZIP} concat \\
+    \$LDZIP concat \\
     --inputs \$(ls -1 *.i.bin 2>/dev/null \\
               | sed "s/\\.i\\.bin\$//" \\
               | sort -V -u) \\
@@ -214,7 +211,7 @@ process concatChromosome {
     tag { "chr${chr}" }
     memory { 8.GB * task.attempt }
     publishDir "${params.outdir}/chr/", mode: 'link', overwrite: true, saveAs: { filename -> filename.replace('concat_chr', "${params.prefix}.chr${chr}.ldzip") }, enabled: params.stage_chr
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
 
     input:
         tuple val(chr), path("*")
@@ -226,7 +223,7 @@ process concatChromosome {
     script:
     """
     inputs=\$(for f in *.i.bin; do [ -s "\$f" ] && echo "\${f%.i.bin}"; done | sort -V -u)
-    ${LDZIP} concat --inputs \$inputs --output_prefix concat_chr${chr}
+    \$LDZIP concat --inputs \$inputs --output_prefix concat_chr${chr}
     """
 
     stub:
@@ -239,7 +236,7 @@ process concatGenome {
     tag "genome"
     memory { 8.GB * task.attempt }
     publishDir "${params.outdir}/whole_genome/", mode: 'link', overwrite: true, saveAs: { filename -> filename.replace('concat', params.prefix) }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"concat_genome.log"}
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"concat_genome.log"}
 
     input:
         path("*")
@@ -252,7 +249,7 @@ process concatGenome {
     script:
     def chrom_order = params.chroms.tokenize(',')*.trim().collect { "concat_chr${it}" }.join(' ')
     """
-    ${LDZIP} concat \\
+    \$LDZIP concat \\
         --inputs ${chrom_order} \\
         --naive \\
         --output_prefix concat
@@ -265,9 +262,9 @@ process concatGenome {
 
 process indexVariants {
     tag "sqlite"
-    memory { System.getenv('CONSTRAIN_MEMORY') ? 8.GB : 8.GB * (4 ** (task.attempt - 1)) }
+    memory { env('CONSTRAIN_MEMORY') ? 8.GB : 8.GB * (4 ** (task.attempt - 1)) }
     publishDir "${params.outdir}/whole_genome/", pattern: "*.sqlite", mode: 'link', overwrite: true, saveAs: { filename -> filename.replace('concat', params.prefix) }
-    publishDir "${params.outdir}/logs/${task.process}/", mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
+    publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
 
     input:
         path("*")
@@ -295,7 +292,35 @@ process indexVariants {
 
 workflow {
 
-        date = new Date().format( 'yyyyMMdd' )
+    workflow.onComplete = {
+        def summary = """
+        Pipeline execution summary
+        ---------------------------
+        Completed at: ${workflow.complete}
+        Duration    : ${workflow.duration}
+        Success     : ${workflow.success}
+        workDir     : ${workflow.workDir}
+        exit status : ${workflow.exitStatus}
+        Command Line: ${workflow.commandLine}
+        """
+
+        println summary
+        def outlog = new File("nf_log.txt")
+        outlog.newWriter().withWriter { w ->
+            w << summary
+        }
+
+    }
+
+    workflow.onError = {
+        println "Oops .. something went wrong"
+    }
+
+    validateParameters()
+
+    CHROMS = params.chroms.tokenize(',')*.trim()
+
+    date = new Date().format( 'yyyyMMdd' )
     log.info ""
     log.info "__________________________________________________"
     log.info "--------------------------------------------------"
@@ -307,7 +332,7 @@ workflow {
     log.info ""
 
     // Validate that only one input type is provided
-    def input_count = [params.vcf_template, params.pfile_template, params.npz_template].count { it != null }
+    def input_count = [params.vcf_template, params.pfile_template, params.npz_template].count { it -> it != null }
     if (input_count > 1) {
         error "Please provide only ONE of: --vcf_template, --pfile_template, or --npz_template"
     }
@@ -331,7 +356,7 @@ workflow {
             .replaceAll(/\{CHR\}/, '([^_]+)')
             .replaceAll(/\{CHUNK\}/, '(.+)')
 
-        npz_files = Channel.fromPath(npz_glob, followLinks: true, type: 'file', checkIfExists: true)
+        npz_files = channel.fromPath(npz_glob, followLinks: true, type: 'file', checkIfExists: true)
             .map { npz_file ->
                 // Extract chr and chunk from filename using template pattern
                 def basename = npz_file.name.replaceAll(/\.npz$/, '')
@@ -351,12 +376,12 @@ workflow {
                 def gz_file = file(npz_file.toString().replace('.npz', '.gz'))
                 return tuple(chr, sort_key, chunk_str, npz_file, gz_file)
             }
-            .filter { it != null && it[0] in CHROMS }
+            .filter { it -> it != null && it[0] in CHROMS }
             .groupTuple(by: 0)  // Group by chromosome
             .flatMap { chr, sort_keys, chunk_strs, npz_files_list, gz_files_list ->
                 // Sort by sort_key within chromosome
                 def sorted = [sort_keys, chunk_strs, npz_files_list, gz_files_list].transpose()
-                    .sort { it[0] }
+                    .sort { it -> it[0] }
 
                 // Assign sequential chunk IDs and track count
                 def chunk_list = sorted.withIndex().collect { item, idx ->
@@ -381,7 +406,7 @@ workflow {
         def overlap_size = params.overlap_size_kb ? (params.overlap_size_kb * 1000) : (params.ld_window_kb * 1000)
 
         if (params.vcf_template) {
-            vcf_files = Channel.from(CHROMS)
+            vcf_files = channel.from(CHROMS)
                                .map { chr ->
                                    def vcf = params.vcf_template.replace('{CHR}', chr)
                                    tuple(chr, file(vcf))
@@ -389,7 +414,7 @@ workflow {
 
             pgen_files = vcfToPgen(vcf_files).pfiles
         } else {
-            pgen_files = Channel.from(CHROMS)
+            pgen_files = channel.from(CHROMS)
                                .map { chr ->
                                    def base = params.pfile_template.replace('{CHR}', chr)
                                    tuple(chr,
@@ -430,8 +455,8 @@ workflow {
             }
             .groupTuple(by: [0, 1], size: 2, remainder: true)
             .map { chr, pair_id, chunk_ids, file_lists ->
-                def sorted = [chunk_ids, file_lists].transpose().sort { it[0] }
-                def all_files = sorted.collect { it[1] }.flatten()
+                def sorted = [chunk_ids, file_lists].transpose().sort { it -> it[0] }
+                def all_files = sorted.collect { it -> it[1] }.flatten()
                 tuple(chr, pair_id, all_files)
             }
 
@@ -464,31 +489,3 @@ workflow {
 
     indexVariants(whole_genome.data)
 }
-
-
-
-workflow.onComplete = {
-    summary = """
-    Pipeline execution summary
-    ---------------------------
-    Completed at: ${workflow.complete}
-    Duration    : ${workflow.duration}
-    Success     : ${workflow.success}
-    workDir     : ${workflow.workDir}
-    exit status : ${workflow.exitStatus}
-    Command Line: ${workflow.commandLine}
-    """
-
-    println summary
-    def outlog = new File("nf_log.txt")
-    outlog.newWriter().withWriter {
-        outlog << summary
-   }
-
-}
-
-
-workflow.onError = {
-    println "Oops .. something went wrong"
-}
-
