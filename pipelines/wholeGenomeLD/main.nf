@@ -37,7 +37,7 @@ process vcfToPgen {
     cpus { params.ld_threads }
     memory { 2.GB * task.cpus * task.attempt }
     publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/pgen/", mode: 'link', overwrite: true, pattern: "converted.chr*.*", enabled: params.stage_pgen
+    publishDir "${params.outdir}/pgen/", mode: 'link', overwrite: true, pattern: {"converted.chr${chr}.*"}, enabled: params.stage_pgen
 
     input:
         tuple val(chr), path(vcf)
@@ -69,7 +69,7 @@ process ldPlink {
     cpus { params.ld_threads }
     memory { 8.GB * task.cpus * task.attempt }
     publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr*.*", enabled: params.stage_plink
+    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: {"plink.chr${chr}_${chunk_id}.*"}, enabled: params.stage_plink
 
     input:
         tuple val(chr), val(chunk_id), val(start_bp), val(end_bp), path(pgen), path(pvar), path(psam)
@@ -119,7 +119,7 @@ process compressLD {
     tag { "chr${chr}-chunk${chunk_id}" }
     memory { 8.GB * task.attempt }
     publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/chunks/", mode: 'link', overwrite: true, pattern: "chr*.ldzip.*", enabled: params.stage_chunk
+    publishDir "${params.outdir}/chunks/", mode: 'link', overwrite: true, pattern: {"chr${chr}_${chunk_id}.ldzip.*"}, enabled: params.stage_chunk
 
     input:
         tuple val(chr), val(chunk_id), val(type), path(ld_file), path(snp_file)
@@ -155,7 +155,7 @@ process convertNpzToBinary {
     tag { "chr${chr}-chunk${chunk_id}" }
     memory { env('CONSTRAIN_MEMORY') ? 8.GB : 16.GB * task.attempt }
     publishDir { "${params.outdir}/logs/${task.process}/" }, mode: 'copy', pattern: ".command.log", overwrite: true, saveAs: {"${task.tag}.log"}
-    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: "plink.chr*.*", enabled: params.stage_binary
+    publishDir "${params.outdir}/plinkLD/", mode: 'link', overwrite: true, pattern: {"chr${chr}_${chunk_id}.*"}, enabled: params.stage_binary
 
     input:
         tuple val(chr), val(chunk_id), path(npz_file), path(gz_file)
