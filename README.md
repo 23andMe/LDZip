@@ -72,6 +72,9 @@ The Nextflow pipeline automates creation of a **whole-genome** compressed LD arc
 
 ## FAQ
 
+- **I am getting the error `fatal error: zstd.h: No such file or directory`. What should I do?**  
+  Follow [this](scripts/install_with_zstd.sh) script to install LDZip after installing `zstd` from source
+  
 - **I already have a `.ldzip` file and want to query it. What should I do?**  
   Install the **R package** and use the R API to fetch LD values and neighboring linked variants. Go to: [R Package](#r-package)
 
