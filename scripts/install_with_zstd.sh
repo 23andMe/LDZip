@@ -22,6 +22,9 @@ make build ZSTD_PREFIX="$HOME/local/zstd_install" -j"$(nproc)" V=1
 # Use locally installed zstd at runtime
 export LD_LIBRARY_PATH="$HOME/local/zstd_install/lib:${LD_LIBRARY_PATH:-}"
 
+# Add LDZip binary to PATH
+export PATH="$HOME/local/LDZip/cpp/bin:$PATH"
+
 # Verify LDZip executable
 ldzip --help
 
