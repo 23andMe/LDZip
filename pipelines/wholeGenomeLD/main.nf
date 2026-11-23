@@ -203,11 +203,12 @@ process concatPairwise {
 
     script:
     """
-    ${LDZIP} concat \\
-    --inputs \$(ls -1 *.i.bin 2>/dev/null \\
-              | sed "s/\\.i\\.bin\$//" \\
-              | sort -V -u) \\
-    --output_prefix pair_${chr}_${pair_id}
+    inputs=\$(for f in *.i.bin; do [ -s "\$f" ] && echo "\${f%.i.bin}"; done | sort -V -u)
+    if [ -n "\$inputs" ]; then
+        ${LDZIP} concat --inputs \$inputs --output_prefix pair_${chr}_${pair_id}
+    else
+        touch pair_${chr}_${pair_id}.i.bin
+    fi
     """
 
     stub:
