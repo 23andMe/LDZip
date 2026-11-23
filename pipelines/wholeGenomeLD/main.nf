@@ -95,7 +95,14 @@ process ldPlink {
         --rm-dup exclude-all \\
         --make-just-pvar \\
         --threads ${task.cpus} \\
-        --out plink.chr${chr}_${chunk_id} || touch plink.chr${chr}_${chunk_id}.pvar
+        --out plink.chr${chr}_${chunk_id} || {
+            rc=\$?
+            if grep -q "No variants remaining" plink.chr${chr}_${chunk_id}.log; then
+                touch plink.chr${chr}_${chunk_id}.pvar
+            else
+                exit \$rc
+            fi
+        }
 
     if [ -s plink.chr${chr}_${chunk_id}.pvar ]; then
         cat plink.chr${chr}_${chunk_id}.pvar | grep -v '#' | cut -f 3 > ids
