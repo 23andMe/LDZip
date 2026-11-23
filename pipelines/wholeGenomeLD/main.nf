@@ -151,7 +151,7 @@ process compressLD {
           --bits ${params.bits} \\
           ${extra_args}
     else
-        touch chr${chr}_${chunk_id}.ldzip.{i.bin,i.bin.index,x.PHASED_R.bin,x.PHASED_R.bin.index,x.DPRIME.bin,x.DPRIME.bin.index,p.bin,meta.json,vars.txt}
+        touch chr${chr}_${chunk_id}.ldzip.i.bin
     fi
     """
 
