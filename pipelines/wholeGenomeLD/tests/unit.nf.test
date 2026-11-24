@@ -4,7 +4,7 @@ nextflow_pipeline {
     name "Whole Genome LDZip Unit Test Pipeline"
     script "main.nf"
 
-    test("Unit Test 1 - Should run without failures") {
+    test("Unit Test 1 - PLINK input, default LD command (unphased r)") {
 
         when {
             params {
@@ -19,7 +19,7 @@ nextflow_pipeline {
 
     }
 
-    test("Unit Test 2 - Should run without failures") {
+    test("Unit Test 2 - PLINK input, explicit --r-unphased with min_col UNPHASED_R") {
 
         when {
             params {
@@ -34,7 +34,7 @@ nextflow_pipeline {
 
     }
 
-    test("Unit Test 3 - Should run without failures") {
+    test("Unit Test 3 - PLINK input, phased r with D and D' (min_col D)") {
 
         when {
             params {
@@ -49,7 +49,26 @@ nextflow_pipeline {
 
     }
 
-    test("Unit Test NPZ - Should run without failures") {
+    test("Unit Test 4 - Empty chunks (high MAF filter) with pairwise concat") {
+
+        when {
+            params {
+                load("$projectDir/tests/yaml/unit4.yaml")
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assert workflow.success
+            // chr22 chunk 2 has no variants with MAF >= 0.49, chunk 1 does
+            assert new File("$outputDir/plinkLD/plink.chr22_2.pvar").length() == 0
+            assert new File("$outputDir/plinkLD/plink.chr22_1.pvar").length() > 0
+            assert new File("$outputDir/whole_genome/out.vars.txt").length() > 0
+        }
+
+    }
+
+    test("Unit Test NPZ - NPZ input (PHASED_R) with pairwise concat") {
 
         when {
             params {
