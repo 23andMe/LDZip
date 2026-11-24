@@ -166,7 +166,7 @@ expect_error(
 
 expect_error(
   fetchVariants(ld, "rs99999999"),
-  "No matching rsIDs found",
+  "Could not parse identifier\\(s\\) as chr:pos:ref:alt",
   info = "Non-existent rsID should error"
 )
 

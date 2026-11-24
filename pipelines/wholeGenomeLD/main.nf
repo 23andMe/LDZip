@@ -95,7 +95,14 @@ process ldPlink {
         --rm-dup exclude-all \\
         --make-just-pvar \\
         --threads ${task.cpus} \\
-        --out plink.chr${chr}_${chunk_id} || touch plink.chr${chr}_${chunk_id}.pvar
+        --out plink.chr${chr}_${chunk_id} || {
+            rc=\$?
+            if grep -q "No variants remaining" plink.chr${chr}_${chunk_id}.log; then
+                touch plink.chr${chr}_${chunk_id}.pvar
+            else
+                exit \$rc
+            fi
+        }
 
     if [ -s plink.chr${chr}_${chunk_id}.pvar ]; then
         cat plink.chr${chr}_${chunk_id}.pvar | grep -v '#' | cut -f 3 > ids
@@ -144,7 +151,7 @@ process compressLD {
           --bits ${params.bits} \\
           ${extra_args}
     else
-        touch chr${chr}_${chunk_id}.ldzip.{i.bin,i.bin.index,x.PHASED_R.bin,x.PHASED_R.bin.index,x.DPRIME.bin,x.DPRIME.bin.index,p.bin,meta.json,vars.txt}
+        touch chr${chr}_${chunk_id}.ldzip.i.bin
     fi
     """
 
@@ -196,11 +203,12 @@ process concatPairwise {
 
     script:
     """
-    ${LDZIP} concat \\
-    --inputs \$(ls -1 *.i.bin 2>/dev/null \\
-              | sed "s/\\.i\\.bin\$//" \\
-              | sort -V -u) \\
-    --output_prefix pair_${chr}_${pair_id}
+    inputs=\$(for f in *.i.bin; do [ -s "\$f" ] && echo "\${f%.i.bin}"; done | sort -V -u)
+    if [ -n "\$inputs" ]; then
+        ${LDZIP} concat --inputs \$inputs --output_prefix pair_${chr}_${pair_id}
+    else
+        touch pair_${chr}_${pair_id}.i.bin
+    fi
     """
 
     stub:

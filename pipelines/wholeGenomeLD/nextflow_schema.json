@@ -36,7 +36,7 @@
                 },
                 "keep": {
                     "type": "string",
-                    "description": "file with list of sample IDs to subset to (must have two columns FID and IID)'"
+                    "description": "file with list of sample IDs to subset to (must have two columns FID and IID). Applied only to the LD calculation, not to variant filtering: --ld_filter is evaluated on all samples in the input file."
                 }
             }
         },
@@ -99,7 +99,7 @@
                 },
                 "ld_filter": {
                     "type": "string",
-                    "description": "variant filtering options to apply before LD calculation (e.g., '--maf 0.0001' for minor allele frequency filtering, '--geno 0.1' for missingness, etc.)"
+                    "description": "variant filtering options to apply before LD calculation (e.g., '--maf 0.0001' for minor allele frequency filtering, '--geno 0.1' for missingness, etc.). Filters passed through ld_filter are computed on all samples in the input file, not on the --keep subset."
                 },
                 "ld_threads": {
                     "type": "integer",

@@ -1,4 +1,7 @@
-.check_fetchLD_inputs <- function(ld, row, col, pairwise) {
+.check_fetchLD_inputs <- function(ld, row, col, pairwise, allow_missing = FALSE) {
+
+  if (pairwise && allow_missing)
+    stop("`allow_missing=TRUE` is not supported with `pairwise=TRUE`")
 
   if (!length(row) || !length(col))
     stop("`row` and `col` must be non-empty")
@@ -50,9 +53,22 @@
 #'
 #' @param ld An external pointer to an \code{LDZipMatrix} object,
 #'   typically created with \code{LDZipMatrix()}.
-#' @param row,col An Integer (1-based), character scalar/vector of variant indices/IDs,
-#'   or genomic region string (e.g., "chr1:10000-20000", "22:16050000-16051000").
-#'   Genomic regions are inclusive on both start and end positions.
+#' @param row,col An Integer (1-based) or character scalar/vector of variant indices/IDs/CPRAs,
+#'   or a genomic region string.
+#'   Inputs are resolved in this order:
+#'   \itemize{
+#'     \item Integer: 1-based variant indices.
+#'     \item Character:
+#'       \enumerate{
+#'         \item A single region string (\code{"chr:start-end"}): all variants in the
+#'           region, inclusive of both ends.
+#'         \item Otherwise, all are looked up as variant IDs in the ID column.
+#'         \item If \emph{none} are found as IDs, all are looked up as CPRA
+#'           (\code{"chr:pos:ref:alt"}, e.g. \code{"22:16050115:G:A"}; \code{":"} or
+#'           \code{"_"} separators). REF/ALT must match exactly
+#'           (alleles are not swapped).
+#'       }
+#'   }
 #' @param types a character scalar/vector of types of linkage statistics to 
 #'   return. Choices are \code{"PHASED_R"}, \code{"UNPHASED_R"}, \code{"PHASED_R2"}, \code{"UNPHASED_R2"}, \code{"D"}, \code{"DPRIME"}.
 #' @param pairwise Logical flag controlling the return type:
@@ -73,6 +89,9 @@
 #'   }
 #'   If \code{FALSE}, results are always returned as a list of matrices, one per statistic.
 #'   Note: This parameter is ignored when \code{pairwise=TRUE}.
+#' @param allow_missing Logical flag. If \code{TRUE}, variant identifiers that are
+#'   not found are dropped with a warning. An error is raised if none are found.
+#'   Not supported with \code{pairwise=TRUE}.
 #'
 #' @return
 #'   When \code{pairwise=FALSE} (default):
@@ -165,13 +184,13 @@
 #' }
 #'
 #' @export
-fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplify=TRUE) {
+fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplify=TRUE, allow_missing=FALSE) {
 
 	if (!inherits(ld, "LDZipMatrix")) {
 		stop("`ld` must be an LDZipMatrix object")
 	}
 
-	.check_fetchLD_inputs(ld, row, col, pairwise)
+	.check_fetchLD_inputs(ld, row, col, pairwise, allow_missing)
 	rowNames = row
 	colNames = col
 
@@ -184,8 +203,8 @@ fetchLD <- function(ld, row, col, types=c("UNPHASED_R"), pairwise=FALSE, simplif
 		}
 	}
 
-	row_resolved <- .resolve_variant_input(row, variant_db_file)
-	col_resolved <- .resolve_variant_input(col, variant_db_file)
+	row_resolved <- .resolve_variant_input(row, variant_db_file, allow_missing)
+	col_resolved <- .resolve_variant_input(col, variant_db_file, allow_missing)
 
 	row_idx <- row_resolved$idx
 	col_idx <- col_resolved$idx

@@ -43,7 +43,7 @@ buildIndex(ld)
 ---
 ### - `fetchLD(rows, columns)`
 Retrieve entries from a compressed LD matrix by specifying rows and columns.  
-- Supports queries by variant indices, variant IDs, or genomic regions.  
+- Supports queries by variant indices, variant IDs, CPRA (`chr:pos:ref:alt`), or genomic regions.  
 - See `?fetchLD` for detailed usage and examples.
 ```
 library(LDZipMatrix)
@@ -51,13 +51,14 @@ ld = LDZipMatrix(file.path(system.file("extdata", package = "LDZipMatrix"), "g1k
 fetchLD(ld, 2, 191, type = c("PHASED_R", "DPRIME"))
 buildIndex(ld)
 fetchLD(ld, "rs587755077", "rs587631919", type = "PHASED_R")
+fetchLD(ld, "22:16050115:G:A", "22:16058342:A:T", type = "PHASED_R")
 fetchLD(ld, "22:16050000-16051000", "22:16050000-16051000", type = "PHASED_R")
 ```
 ---
 
 ### - `fetchVariants(variants)`
 Retrieve variant metadata (chromosome, position, ID, reference and alternate alleles) from the indexed database.
-- Supports queries by variant indices, variant IDs, or genomic regions.
+- Supports queries by variant indices, variant IDs, CPRA (`chr:pos:ref:alt`), or genomic regions.
 - Returns a data.frame with columns: idx, CHROM, POS, ID, REF, ALT.
 - See `?fetchVariants` for detailed usage and examples.
 ```
@@ -66,6 +67,7 @@ ld = LDZipMatrix(file.path(system.file("extdata", package = "LDZipMatrix"), "g1k
 buildIndex(ld)
 fetchVariants(ld, c(1, 10, 50))
 fetchVariants(ld, c("rs587755077", "rs587631919"))
+fetchVariants(ld, c("22:16050115:G:A", "22:16058342:A:T"))
 fetchVariants(ld, "22:16050000-16051000")
 ```
 ---

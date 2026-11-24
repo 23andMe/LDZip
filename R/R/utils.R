@@ -10,14 +10,22 @@
   is.character(x) && length(x) == 1 && grepl("^(chr)?[0-9XYM]+:[0-9]+-[0-9]+$", x)
 }
 
-.resolve_variant_input <- function(input, variant_db_file) {
+.resolve_variant_input <- function(input, variant_db_file, allow_missing = FALSE) {
   if (.is_region(input)) {
     region <- .parse_region(input)
     r <- get_rsids_by_region(variant_db_file, region)
     idx <- r$idx
     names <- r$rsids
   } else if (is.character(input)) {
-    r <- get_indices_by_rsid(variant_db_file, rsids=input)
+    r <- tryCatch(
+      get_indices_by_rsid(variant_db_file, rsids=input, allow_missing=allow_missing),
+      ldzip_no_id_match = function(e) NULL
+    )
+    if (is.null(r)) {
+      # nothing found by ID: fall back to CPRA (chr:pos:ref:alt)
+      r <- get_indices_by_cpra(variant_db_file, cpras=input, allow_missing=allow_missing)
+      warning("Variants matched by CPRA (chr:pos:ref:alt) instead of ID", call. = FALSE)
+    }
     idx <- r$idx
     names <- r$rsid
   } else {
