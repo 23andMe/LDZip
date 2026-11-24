@@ -30,7 +30,7 @@ join_variant_identifier <- function(num, fmt){
   mapply(function(n,f) sub("%", as.character(n), f, fixed=TRUE), num, fmt, USE.NAMES=FALSE)
 }
 
-get_indices_by_rsid <- function(db_file, rsids) {
+get_indices_by_rsid <- function(db_file, rsids, allow_missing = FALSE) {
   if (!file.exists(db_file)) stop(sprintf("Database file not found: %s", db_file))
 
   con <- DBI::dbConnect(RSQLite::SQLite(), db_file)
@@ -45,11 +45,63 @@ get_indices_by_rsid <- function(db_file, rsids) {
   ", union_sql)
 
   res <- DBI::dbGetQuery(con, sql)
-  if (nrow(res) == 0) stop('No matching rsIDs found in variants table')
+  if (nrow(res) == 0) stop(errorCondition('No matching rsIDs found in variants table', class = "ldzip_no_id_match"))
 
   # rebuild identifiers
   res$rsid <- join_variant_identifier(res$RSNUM, res$RSLEV)
-  if (length(m <- setdiff(rsids, res$rsid))) stop("Missing rsIDs: ", paste(m, collapse = ", "))
+  if (length(m <- setdiff(rsids, res$rsid))) {
+    if (!allow_missing) stop("Missing rsIDs: ", paste(m, collapse = ", "))
+    warning("Missing rsIDs: ", paste(m, collapse = ", "), call. = FALSE)
+  }
+  res[order(res$idx), c('idx','rsid')]
+}
+
+parse_cpra <- function(x) {
+  re <- "^(?:chr)?([^:_]+)[:_]([0-9]+)[:_]([^:_]+)[:_]([^:_]+)$"
+  x <- x[grepl(re, x, perl = TRUE, ignore.case = TRUE)]
+  part <- function(i) sub(re, i, x, perl = TRUE, ignore.case = TRUE)
+  data.frame(
+    input = x,
+    CHROM = part("\\1"),
+    POS   = as.numeric(part("\\2")),
+    REF   = toupper(part("\\3")),
+    ALT   = toupper(part("\\4")),
+    stringsAsFactors = FALSE
+  )
+}
+
+get_indices_by_cpra <- function(db_file, cpras, allow_missing = FALSE) {
+  if (!file.exists(db_file)) stop(sprintf("Database file not found: %s", db_file))
+
+  q <- parse_cpra(cpras)
+  if (length(bad <- setdiff(cpras, q$input)))
+    stop("Could not parse identifier(s) as chr:pos:ref:alt: ", paste(bad, collapse = ", "))
+
+  con <- DBI::dbConnect(RSQLite::SQLite(), db_file)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  selects <- sprintf(
+    "SELECT %s AS input, %s AS CHROM, %.0f AS POS, %s AS REF, %s AS ALT",
+    DBI::dbQuoteString(con, q$input), DBI::dbQuoteString(con, q$CHROM), q$POS,
+    DBI::dbQuoteString(con, q$REF), DBI::dbQuoteString(con, q$ALT)
+  )
+  sql <- sprintf("
+    SELECT v.rowid AS idx, q.input AS rsid
+    FROM ( %s ) AS q
+    JOIN variants v
+      ON v.CHROM IN (q.CHROM, 'chr' || q.CHROM)
+     AND v.POS = q.POS
+     AND UPPER(v.REF) = q.REF
+     AND UPPER(v.ALT) = q.ALT
+  ", paste(selects, collapse = " UNION ALL "))
+
+  res <- DBI::dbGetQuery(con, sql)
+  if (nrow(res) == 0) stop("No matching variants found for CPRA(s): ", paste(q$input, collapse = ", "))
+
+  if (length(m <- setdiff(q$input, res$rsid))) {
+    if (!allow_missing) stop("Missing CPRAs: ", paste(m, collapse = ", "))
+    warning("Missing CPRAs: ", paste(m, collapse = ", "), call. = FALSE)
+  }
   res[order(res$idx), c('idx','rsid')]
 }
 

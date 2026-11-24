@@ -21,9 +21,24 @@
 #'
 #' @param ld An external pointer to an \code{LDZipMatrix} object,
 #'   typically created with \code{LDZipMatrix()}.
-#' @param variants Integer (1-based), character scalar/vector of variant indices/IDs,
-#'   or genomic region string (e.g., "chr1:10000-20000", "22:16050000-16051000").
-#'   Genomic regions are inclusive on both start and end positions.
+#' @param variants Integer (1-based) or character scalar/vector of variant indices/IDs/CPRAs,
+#'   or a genomic region string.
+#'   Inputs are resolved in this order:
+#'   \itemize{
+#'     \item Integer: 1-based variant indices.
+#'     \item Character:
+#'       \enumerate{
+#'         \item A single region string (\code{"chr:start-end"}): all variants in the
+#'           region, inclusive of both ends.
+#'         \item Otherwise, all are looked up as variant IDs in the ID column.
+#'         \item If \emph{none} are found as IDs, all are looked up as CPRA
+#'           (\code{"chr:pos:ref:alt"}, e.g. \code{"22:16050115:G:A"}; \code{":"} or
+#'           \code{"_"} separators). REF/ALT must match exactly
+#'           (alleles are not swapped).
+#'       }
+#'   }
+#' @param allow_missing Logical flag. If \code{TRUE}, variant identifiers that are
+#'   not found are dropped with a warning. An error is raised if none are found.
 #'
 #' @return
 #'   A \code{data.frame} with the following columns:
@@ -66,7 +81,7 @@
 #'
 #' @seealso \code{\link{fetchLD}}, \code{\link{buildIndex}}
 #' @export
-fetchVariants <- function(ld, variants) {
+fetchVariants <- function(ld, variants, allow_missing = FALSE) {
 
   if (!inherits(ld, "LDZipMatrix")) {
     stop("`ld` must be an LDZipMatrix object")
@@ -81,7 +96,7 @@ fetchVariants <- function(ld, variants) {
   }
 
   # Resolve variant input (indices, rsIDs, or region)
-  variant_resolved <- .resolve_variant_input(variants, variant_db_file)
+  variant_resolved <- .resolve_variant_input(variants, variant_db_file, allow_missing)
   indices <- variant_resolved$idx
 
   # Fetch full variant info including CPRA
