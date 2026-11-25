@@ -30,6 +30,8 @@ It supports the following main operations, each with its own subcommands and opt
 3. **concat** – Merge multiple `.ldzip` chunks into a single combined archive.  
 4. **filter** – Filter a `.ldzip` file based on 0-based indices to another `.ldzip` file.  
 5. **find-tag-variants** – Find tag variants above an LD threshold for a list of query variants.
+6. **prune** – LD-based variant pruning using greedy pairwise algorithm.
+7. **ld-score** – Calculate LD scores for all variants.
 
 ---
 
@@ -143,3 +145,57 @@ bin/ldzip find-tag-variants \
 ```
 
 **Note:** This operation is only supported for v3.0 chunked format matrices.
+
+---
+
+### Prune
+
+The `prune` operation performs LD-based variant pruning using a greedy pairwise algorithm. For each variant, it removes all variants in LD above the threshold within the specified window.
+
+| Option          | Description                                                                                                                               | Required / Default |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `--input_prefix`     | Path to the input compressed LD matrix file      | **Required**       |
+| `--output_prefix` | Prefix for output files (.prune.in and .prune.out) | **Required**       |
+| `--threshold`        | LD threshold for pruning  | Default: *0.2*       |
+| `--window`             | Window size in kilobases    | Default: *1000*       |
+| `--stat`             | LD statistic to use (e.g., UNPHASED_R, PHASED_R, UNPHASED_R2)    | Default: *UNPHASED_R*       |
+
+**Example Usage:**
+
+```
+bin/ldzip prune \
+    --input_prefix compressed \
+    --output_prefix pruned \
+    --threshold 0.2 \
+    --window 1000 \
+    --stat UNPHASED_R
+```
+
+**Note:** This operation is only supported for v3.0 chunked format matrices.
+
+---
+
+### LD Score
+
+The `ld-score` operation calculates LD scores for all variants. The LD score for variant i is the sum of r² values for all variants j within the specified window where |LD(i,j)| >= threshold.
+
+| Option          | Description                                                                                                                               | Required / Default |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `--input_prefix`     | Path to the input compressed LD matrix file      | **Required**       |
+| `--output` | Output file for LD scores (TSV format: variant_idx, ld_score) | **Required**       |
+| `--window`             | Window size in kilobases    | Default: *1000*       |
+| `--threshold`        | Minimum absolute LD value to include in calculation  | Default: *0.0001*       |
+| `--stat`             | LD statistic to use (PHASED_R, UNPHASED_R, PHASED_R2, UNPHASED_R2)    | Default: *UNPHASED_R2*       |
+
+**Example Usage:**
+
+```
+bin/ldzip ld-score \
+    --input_prefix compressed \
+    --output ldscores.txt \
+    --window 1000 \
+    --threshold 0.0001 \
+    --stat UNPHASED_R2
+```
+
+**Note:** This operation is only supported for v3.0 chunked format matrices. If using PHASED_R or UNPHASED_R statistics, the values will be squared to obtain r².
